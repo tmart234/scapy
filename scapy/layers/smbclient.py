@@ -40,7 +40,6 @@ from scapy.layers.gssapi import (
 from scapy.layers.msrpce.raw.ms_srvs import (
     LPSHARE_ENUM_STRUCT,
     NetrShareEnum_Request,
-    NetrShareEnum_Response,
     SHARE_INFO_1_CONTAINER,
 )
 from scapy.layers.ntlm import (
@@ -58,11 +57,11 @@ from scapy.layers.smb import (
     SMB_Dialect,
     SMB_Header,
 )
+from scapy.layers.windows.security import SECURITY_DESCRIPTOR
 from scapy.layers.smb2 import (
     DirectTCP,
     FileAllInformation,
     FileIdBothDirectoryInformation,
-    SECURITY_DESCRIPTOR,
     SMB2_CREATE_DURABLE_HANDLE_REQUEST_V2,
     SMB2_CREATE_REQUEST_LEASE,
     SMB2_CREATE_REQUEST_LEASE_V2,
@@ -155,6 +154,8 @@ class SMB_Client(Automaton):
         self.NegotiateCapabilities = None
         self.GUID = RandUUID()._fix()
         self.SequenceWindow = (0, 0)  # keep track of allowed MIDs
+        self.CurrentCreditCount = 0
+        self.MaxCreditCount = 128
         if ssp is None:
             # We got no SSP. Assuming the server allows anonymous
             ssp = SPNEGOSSP(
@@ -232,8 +233,12 @@ class SMB_Client(Automaton):
             else:
                 # "For all other requests, the client MUST set CreditCharge to 1"
                 pkt.CreditCharge = 1
-            # [MS-SMB2] 3.2.4.1.2
-            pkt.CreditRequest = pkt.CreditCharge + 1  # this code is a bit lazy
+            # Keep track of our credits
+            self.CurrentCreditCount -= pkt.CreditCharge
+            # [MS-SMB2] note <110>
+            # "The Windows-based client will request credits up to a configurable
+            # maximum of 128 by default."
+            pkt.CreditRequest = self.MaxCreditCount - self.CurrentCreditCount
         # Get first available message ID: [MS-SMB2] 3.2.4.1.3 and 3.2.4.1.5
         pkt.MID = self.SequenceWindow[0]
         return super(SMB_Client, self).send(pkt)
@@ -466,6 +471,8 @@ class SMB_Client(Automaton):
             self.smb_header.SessionId = pkt.SessionId
             self.smb_header.TID = pkt.TID
             self.smb_header.PID = pkt.PID
+            # Update credits
+            self.CurrentCreditCount += pkt.CreditRequest
         # [MS-SMB2] 3.2.5.1.4
         self.SequenceWindow = (
             self.SequenceWindow[0] + max(pkt.CreditCharge, 1),
@@ -675,8 +682,8 @@ class SMB_SOCKET(SuperSocket):
         self.timeout = timeout
         if not self.ins.atmt.smb_sock_ready.wait(timeout=timeout):
             # If we have a SSP, tell it we failed.
-            if self.ins.atmt.session.sspcontext:
-                self.ins.atmt.session.sspcontext.clifailure()
+            if self.session.sspcontext:
+                self.session.sspcontext.clifailure()
             raise TimeoutError(
                 "The SMB handshake timed out ! (enable debug=1 for logs)"
             )
@@ -897,7 +904,7 @@ class SMB_SOCKET(SuperSocket):
                 Offset=Offset,
             ),
             verbose=0,
-            timeout=self.timeout,
+            timeout=self.timeout * 10,
         )
         if not resp:
             raise ValueError("ReadRequest timed out !")
@@ -916,7 +923,7 @@ class SMB_SOCKET(SuperSocket):
                 Offset=Offset,
             ),
             verbose=0,
-            timeout=self.timeout,
+            timeout=self.timeout * 10,
         )
         if not resp:
             raise ValueError("WriteRequest timed out !")
@@ -1024,7 +1031,7 @@ class SMB_RPC_SOCKET(ObjectPipe, SMB_SOCKET):
         # Detect if DCE/RPC is fragmented. Then we must use Read/Write
         is_frag = x.pfc_flags & 3 != 3
 
-        if self.use_ioctl and not is_frag:
+        if self.use_ioctl and not is_frag and self.session.Dialect >= 0x0210:
             # Use IOCTLRequest
             pkt = SMB2_IOCTL_Request(
                 FileId=self.PipeFileId,
@@ -1122,6 +1129,7 @@ class smbclient(CLIUtil):
         HashNt: bytes = None,
         HashAes256Sha96: bytes = None,
         HashAes128Sha96: bytes = None,
+        use_krb5ccname: bool = False,
         port: int = 445,
         timeout: int = 5,
         debug: int = 0,
@@ -1150,6 +1158,7 @@ class smbclient(CLIUtil):
                     ST=ST,
                     KEY=KEY,
                     kerberos_required=kerberos_required,
+                    use_krb5ccname=use_krb5ccname,
                 )
             else:
                 # Guest mode
@@ -1291,7 +1300,7 @@ class smbclient(CLIUtil):
         )
         resp = self.rpcclient.sr1_req(req, timeout=self.timeout)
         self.rpcclient.close_smbpipe()
-        if not isinstance(resp, NetrShareEnum_Response):
+        if resp.status != 0:
             resp.show()
             raise ValueError("NetrShareEnum_Request failed !")
         results = []
@@ -1314,7 +1323,7 @@ class smbclient(CLIUtil):
         """
         print(pretty_list(results, [("ShareName", "ShareType", "Comment")]))
 
-    @CLIUtil.addcommand()
+    @CLIUtil.addcommand(mono=True)
     def use(self, share):
         """
         Open a share
@@ -1382,7 +1391,7 @@ class smbclient(CLIUtil):
             return [results[0] + "\\"]
         return results
 
-    @CLIUtil.addcommand(spaces=True)
+    @CLIUtil.addcommand(mono=True)
     def ls(self, parent=None):
         """
         List the files in the remote directory
@@ -1457,7 +1466,7 @@ class smbclient(CLIUtil):
             return []
         return self._dir_complete(folder)
 
-    @CLIUtil.addcommand(spaces=True)
+    @CLIUtil.addcommand(mono=True)
     def cd(self, folder):
         """
         Change the remote current directory
@@ -1525,7 +1534,7 @@ class smbclient(CLIUtil):
             pretty_list(results, [("FileName", "File Size", "Last Modification Time")])
         )
 
-    @CLIUtil.addcommand(spaces=True)
+    @CLIUtil.addcommand(mono=True)
     def lcd(self, folder):
         """
         Change the local current directory
@@ -1558,6 +1567,7 @@ class smbclient(CLIUtil):
         # Get pwd of the ls
         fpath = self.pwd / file
         self.smbsock.set_TID(self.current_tree)
+
         # Open file
         fileId = self.smbsock.create_request(
             self.normalize_path(fpath),
@@ -1567,6 +1577,7 @@ class smbclient(CLIUtil):
             ]
             + self.extra_create_options,
         )
+
         # Get the file size
         info = FileAllInformation(
             self.smbsock.query_info(
@@ -1577,6 +1588,7 @@ class smbclient(CLIUtil):
         )
         length = info.StandardInformation.EndOfFile
         offset = 0
+
         # Read the file
         while length:
             lengthRead = min(self.smbsock.session.MaxReadSize, length)
@@ -1585,6 +1597,7 @@ class smbclient(CLIUtil):
             )
             offset += lengthRead
             length -= lengthRead
+
         # Close the file
         self.smbsock.close_request(fileId)
         return offset
@@ -1650,7 +1663,7 @@ class smbclient(CLIUtil):
                     print(conf.color_theme.red(remote), "->", str(ex))
         return size
 
-    @CLIUtil.addcommand(spaces=True, globsupport=True)
+    @CLIUtil.addcommand(mono=True, globsupport=True)
     def get(self, file, _dest=None, _verb=True, *, r=False):
         """
         Retrieve a file
@@ -1690,7 +1703,7 @@ class smbclient(CLIUtil):
             return []
         return self._fs_complete(file)
 
-    @CLIUtil.addcommand(spaces=True, globsupport=True)
+    @CLIUtil.addcommand(mono=True, globsupport=True)
     def cat(self, file):
         """
         Print a file
@@ -1718,7 +1731,7 @@ class smbclient(CLIUtil):
             return []
         return self._fs_complete(file)
 
-    @CLIUtil.addcommand(spaces=True)
+    @CLIUtil.addcommand(mono=True, globsupport=True)
     def put(self, file):
         """
         Upload a file
@@ -1743,7 +1756,7 @@ class smbclient(CLIUtil):
         """
         return self._lfs_complete(folder, lambda x: not x.is_dir())
 
-    @CLIUtil.addcommand(spaces=True)
+    @CLIUtil.addcommand(mono=True)
     def rm(self, file):
         """
         Delete a file
@@ -1786,7 +1799,7 @@ class smbclient(CLIUtil):
             print("Backup Intent: On")
             self.extra_create_options.append("FILE_OPEN_FOR_BACKUP_INTENT")
 
-    @CLIUtil.addcommand(spaces=True)
+    @CLIUtil.addcommand(mono=True)
     def watch(self, folder):
         """
         Watch file changes in folder (recursively)
@@ -1811,11 +1824,9 @@ class smbclient(CLIUtil):
                     print(chg.sprintf("%.time%: %Action% %FileName%"))
         except KeyboardInterrupt:
             pass
-        # Close the file
-        self.smbsock.close_request(fileId)
         print("Cancelled.")
 
-    @CLIUtil.addcommand(spaces=True)
+    @CLIUtil.addcommand(mono=True)
     def getsd(self, file):
         """
         Get the Security Descriptor
@@ -1865,16 +1876,7 @@ class smbclient(CLIUtil):
         Print the output of 'getsd'
         """
         sd = SECURITY_DESCRIPTOR(results)
-        print("Owner:", sd.OwnerSid.summary())
-        print("Group:", sd.GroupSid.summary())
-        if getattr(sd, "DACL", None):
-            print("DACL:")
-            for ace in sd.DACL.Aces:
-                print(" - ", ace.toSDDL())
-        if getattr(sd, "SACL", None):
-            print("SACL:")
-            for ace in sd.SACL.Aces:
-                print(" - ", ace.toSDDL())
+        sd.show_print()
 
 
 if __name__ == "__main__":
