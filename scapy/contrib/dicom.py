@@ -8,29 +8,29 @@
 
 """
 DICOM (Digital Imaging and Communications in Medicine) Protocol
- 
+
 Upper Layer PDUs (PS3.8), DIMSE-C/N commands (PS3.7), association
 negotiation sub-items (PS3.7 D.3.3), and Transfer Syntax constants (PS3.5).
 
 The DICOM protocol stack::
 
     +---------------------------+
-    |  DIMSE Messages (PS3.7)   |  <- C-ECHO, C-STORE, N-GET, etc.
+    |  DIMSE Messages (PS3.7)   |  C-ECHO, C-STORE, N-GET, ...
     +---------------------------+
     |  P-DATA-TF PDV payload    |
     +---------------------------+
-    |  Upper Layer PDUs (PS3.8) |  <- A-ASSOCIATE, P-DATA-TF, A-RELEASE
+    |  Upper Layer PDUs (PS3.8) |  A-ASSOCIATE, P-DATA-TF, A-RELEASE
     +---------------------------+
     |          TCP              |
     +---------------------------+
+
 DIMSE Command Sets are always Implicit VR Little Endian (PS3.7 §9.3);
 the negotiated Transfer Syntax applies only to Data Sets in P-DATA-TF PDVs.
- 
+
 References:
     https://dicom.nema.org/medical/dicom/current/output/html/part05.html
     https://dicom.nema.org/medical/dicom/current/output/html/part07.html
-    https://dicom.nema.org/medical/dicom/current/output/html/part08.html    
-
+    https://dicom.nema.org/medical/dicom/current/output/html/part08.html
 """
 
 import logging
