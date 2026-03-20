@@ -67,221 +67,101 @@ from scapy.supersocket import StreamSocket
 from scapy.volatile import RandShort, RandInt, RandString
 
 __all__ = [
-
     # Constants
-
-    "DICOM_PORT",
-    "DICOM_PORT_ALT",
-    "APP_CONTEXT_UID",
+    "DICOM_PORT", "DICOM_PORT_ALT", "APP_CONTEXT_UID",
     # Transfer Syntax UIDs (PS3.5 Annex A)
-    "DEFAULT_TRANSFER_SYNTAX_UID",
-    "IMPLICIT_VR_LITTLE_ENDIAN_UID",
-    "EXPLICIT_VR_LITTLE_ENDIAN_UID",
-    "EXPLICIT_VR_BIG_ENDIAN_UID",
+    "DEFAULT_TRANSFER_SYNTAX_UID", "IMPLICIT_VR_LITTLE_ENDIAN_UID",
+    "EXPLICIT_VR_LITTLE_ENDIAN_UID", "EXPLICIT_VR_BIG_ENDIAN_UID",
     "DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN_UID",
-    "JPEG_BASELINE_UID",
-    "JPEG_LOSSLESS_UID",
-    "JPEG_LS_LOSSLESS_UID",
-    "JPEG_LS_LOSSY_UID",
-    "JPEG_2000_LOSSLESS_UID",
-    "JPEG_2000_UID",
-    "RLE_LOSSLESS_UID",
-    "HTJP2K_LOSSLESS_UID",
-    "HTJP2K_LOSSLESS_RPCL_UID",
-    "HTJP2K_UID",
+    "JPEG_BASELINE_UID", "JPEG_LOSSLESS_UID",
+    "JPEG_LS_LOSSLESS_UID", "JPEG_LS_LOSSY_UID",
+    "JPEG_2000_LOSSLESS_UID", "JPEG_2000_UID", "RLE_LOSSLESS_UID",
+    "HTJP2K_LOSSLESS_UID", "HTJP2K_LOSSLESS_RPCL_UID", "HTJP2K_UID",
     # SOP Class UIDs (PS3.4)
-    "VERIFICATION_SOP_CLASS_UID",
-    "CT_IMAGE_STORAGE_SOP_CLASS_UID",
+    "VERIFICATION_SOP_CLASS_UID", "CT_IMAGE_STORAGE_SOP_CLASS_UID",
     "PATIENT_ROOT_QR_FIND_SOP_CLASS_UID",
     "PATIENT_ROOT_QR_MOVE_SOP_CLASS_UID",
     "PATIENT_ROOT_QR_GET_SOP_CLASS_UID",
     "STUDY_ROOT_QR_FIND_SOP_CLASS_UID",
     "STUDY_ROOT_QR_MOVE_SOP_CLASS_UID",
     "STUDY_ROOT_QR_GET_SOP_CLASS_UID",
-
     # PDU Classes (PS3.8 Section 9.3)
-
-    "DICOM",
-    "A_ASSOCIATE_RQ",
-    "A_ASSOCIATE_AC",
-    "A_ASSOCIATE_RJ",
-    "P_DATA_TF",
-    "A_RELEASE_RQ",
-    "A_RELEASE_RP",
-    "A_ABORT",
+    "DICOM", "A_ASSOCIATE_RQ", "A_ASSOCIATE_AC", "A_ASSOCIATE_RJ",
+    "P_DATA_TF", "A_RELEASE_RQ", "A_RELEASE_RP", "A_ABORT",
     "PresentationDataValueItem",
-
     # Variable Items (PS3.8 Section 9.3.2)
-
-    "DICOMVariableItem",
-    "DICOMApplicationContext",
-    "DICOMPresentationContextRQ",
-    "DICOMPresentationContextAC",
-    "DICOMAbstractSyntax",
-    "DICOMTransferSyntax",
-    "DICOMUserInformation",
-    "DICOMMaximumLength",
-    "DICOMGenericItem",
-
+    "DICOMVariableItem", "DICOMApplicationContext",
+    "DICOMPresentationContextRQ", "DICOMPresentationContextAC",
+    "DICOMAbstractSyntax", "DICOMTransferSyntax",
+    "DICOMUserInformation", "DICOMMaximumLength", "DICOMGenericItem",
     # Extended User Info Sub-Items (PS3.7 D.3.3)
-
-    "DICOMImplementationClassUID",
-    "DICOMAsyncOperationsWindow",
-    "DICOMSCPSCURoleSelection",
-    "DICOMImplementationVersionName",
+    "DICOMImplementationClassUID", "DICOMAsyncOperationsWindow",
+    "DICOMSCPSCURoleSelection", "DICOMImplementationVersionName",
     "DICOMSOPClassExtendedNegotiation",
     "DICOMSOPClassCommonExtendedNegotiation",
-    "DICOMUserIdentity",
-    "DICOMUserIdentityResponse",
-
+    "DICOMUserIdentity", "DICOMUserIdentityResponse",
     # DIMSE Field Classes
-
-    "DICOMAETitleField",
-    "DICOMElementField",
-    "DICOMUIDField",
-    "DICOMUIDFieldRaw",
-    "DICOMUSField",
-    "DICOMULField",
-    "DICOMAEDIMSEField",
-    "DICOMATField",
-
+    "DICOMAETitleField", "DICOMElementField",
+    "DICOMUIDField", "DICOMUIDFieldRaw",
+    "DICOMUSField", "DICOMULField",
+    "DICOMAEDIMSEField", "DICOMATField",
     # DIMSE Base Class
-
     "DIMSEPacket",
-
     # DIMSE-C Commands (PS3.7 Section 9.3)
-
-    "C_ECHO_RQ",
-    "C_ECHO_RSP",
-    "C_STORE_RQ",
-    "C_STORE_RSP",
-    "C_FIND_RQ",
-    "C_FIND_RSP",
-    "C_MOVE_RQ",
-    "C_MOVE_RSP",
-    "C_GET_RQ",
-    "C_GET_RSP",
-    "C_CANCEL_RQ",
-
+    "C_ECHO_RQ", "C_ECHO_RSP", "C_STORE_RQ", "C_STORE_RSP",
+    "C_FIND_RQ", "C_FIND_RSP", "C_MOVE_RQ", "C_MOVE_RSP",
+    "C_GET_RQ", "C_GET_RSP", "C_CANCEL_RQ",
     # DIMSE-N Commands (PS3.7 Section 10.3)
-
-    "N_EVENT_REPORT_RQ",
-    "N_EVENT_REPORT_RSP",
-    "N_GET_RQ",
-    "N_GET_RSP",
-    "N_SET_RQ",
-    "N_SET_RSP",
-    "N_ACTION_RQ",
-    "N_ACTION_RSP",
-    "N_CREATE_RQ",
-    "N_CREATE_RSP",
-    "N_DELETE_RQ",
-    "N_DELETE_RSP",
-
+    "N_EVENT_REPORT_RQ", "N_EVENT_REPORT_RSP",
+    "N_GET_RQ", "N_GET_RSP", "N_SET_RQ", "N_SET_RSP",
+    "N_ACTION_RQ", "N_ACTION_RSP", "N_CREATE_RQ", "N_CREATE_RSP",
+    "N_DELETE_RQ", "N_DELETE_RSP",
     # Utilities
-
-    "DICOMSocket",
-    "parse_dimse_status",
-    "_uid_to_bytes",
-    "_uid_to_bytes_raw",
-    "build_presentation_context_rq",
-    "build_user_information",
-
+    "DICOMSocket", "parse_dimse_status",
+    "_uid_to_bytes", "_uid_to_bytes_raw",
+    "build_presentation_context_rq", "build_user_information",
     # DIMSE Status Codes (PS3.7 Annex C)
-
-    "STATUS_SUCCESS",
-    "STATUS_CANCEL",
-    "STATUS_PENDING",
-    "STATUS_PENDING_WARNINGS",
-    "STATUS_WARNING_ATTRIBUTE_LIST",
-    "STATUS_WARNING_ATTR_OUT_OF_RANGE",
+    "STATUS_SUCCESS", "STATUS_CANCEL",
+    "STATUS_PENDING", "STATUS_PENDING_WARNINGS",
+    "STATUS_WARNING_ATTRIBUTE_LIST", "STATUS_WARNING_ATTR_OUT_OF_RANGE",
     "STATUS_ERR_SOP_CLASS_NOT_SUPPORTED",
     "STATUS_ERR_CLASS_INSTANCE_CONFLICT",
     "STATUS_ERR_DUPLICATE_SOP_INSTANCE",
     "STATUS_ERR_DUPLICATE_INVOCATION",
-    "STATUS_ERR_INVALID_ARGUMENT",
-    "STATUS_ERR_INVALID_ATTRIBUTE_VALUE",
-    "STATUS_ERR_INVALID_SOP_INSTANCE",
-    "STATUS_ERR_MISSING_ATTRIBUTE",
-    "STATUS_ERR_MISSING_ATTRIBUTE_VALUE",
-    "STATUS_ERR_MISTYPED_ARGUMENT",
-    "STATUS_ERR_NO_SUCH_ARGUMENT",
-    "STATUS_ERR_NO_SUCH_ATTRIBUTE",
-    "STATUS_ERR_NO_SUCH_EVENT_TYPE",
-    "STATUS_ERR_NO_SUCH_SOP_INSTANCE",
-    "STATUS_ERR_NO_SUCH_SOP_CLASS",
-    "STATUS_ERR_PROCESSING_FAILURE",
-    "STATUS_ERR_RESOURCE_LIMITATION",
-    "STATUS_ERR_UNRECOGNIZED_OPERATION",
-    "STATUS_ERR_NO_SUCH_ACTION_TYPE",
-    "STATUS_ERR_NOT_AUTHORIZED",
+    "STATUS_ERR_INVALID_ARGUMENT", "STATUS_ERR_INVALID_ATTRIBUTE_VALUE",
+    "STATUS_ERR_INVALID_SOP_INSTANCE", "STATUS_ERR_MISSING_ATTRIBUTE",
+    "STATUS_ERR_MISSING_ATTRIBUTE_VALUE", "STATUS_ERR_MISTYPED_ARGUMENT",
+    "STATUS_ERR_NO_SUCH_ARGUMENT", "STATUS_ERR_NO_SUCH_ATTRIBUTE",
+    "STATUS_ERR_NO_SUCH_EVENT_TYPE", "STATUS_ERR_NO_SUCH_SOP_INSTANCE",
+    "STATUS_ERR_NO_SUCH_SOP_CLASS", "STATUS_ERR_PROCESSING_FAILURE",
+    "STATUS_ERR_RESOURCE_LIMITATION", "STATUS_ERR_UNRECOGNIZED_OPERATION",
+    "STATUS_ERR_NO_SUCH_ACTION_TYPE", "STATUS_ERR_NOT_AUTHORIZED",
 ]
 
 log = logging.getLogger("scapy.contrib.dicom")
 
-
-# =============================================================================
-# Constants
-# =============================================================================
-
-
-# Standard DICOM ports (PS3.8 Section 9.1.1)
-DICOM_PORT = 104        # Well-known port (privileged)
-DICOM_PORT_ALT = 11112  # Registered port (non-privileged)
-
-# Application Context Name (PS3.7 Annex A, B)
+DICOM_PORT = 104
+DICOM_PORT_ALT = 11112
 APP_CONTEXT_UID = "1.2.840.10008.3.1.1.1"
 
-
 # Transfer Syntax UIDs (PS3.5 Annex A)
-
-
-# Default - Implicit VR Little Endian (PS3.5 A.1)
 DEFAULT_TRANSFER_SYNTAX_UID = "1.2.840.10008.1.2"
 IMPLICIT_VR_LITTLE_ENDIAN_UID = "1.2.840.10008.1.2"
-
-# Explicit VR Little Endian (PS3.5 A.2)
 EXPLICIT_VR_LITTLE_ENDIAN_UID = "1.2.840.10008.1.2.1"
-
-# Explicit VR Big Endian (PS3.5 A.3) - Retired but still encountered
 EXPLICIT_VR_BIG_ENDIAN_UID = "1.2.840.10008.1.2.2"
-
-# Deflated Explicit VR Little Endian (PS3.5 A.5)
 DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN_UID = "1.2.840.10008.1.2.1.99"
-
-# JPEG Baseline (Process 1) - Lossy (PS3.5 A.4.1)
 JPEG_BASELINE_UID = "1.2.840.10008.1.2.4.50"
-
-# JPEG Lossless, Non-Hierarchical (Process 14, First-Order Prediction)
 JPEG_LOSSLESS_UID = "1.2.840.10008.1.2.4.70"
-
-# JPEG-LS Lossless (PS3.5 A.4.4)
 JPEG_LS_LOSSLESS_UID = "1.2.840.10008.1.2.4.80"
-
-# JPEG-LS Near-Lossless (PS3.5 A.4.4)
 JPEG_LS_LOSSY_UID = "1.2.840.10008.1.2.4.81"
-
-# JPEG 2000 Image Compression (Lossless Only) (PS3.5 A.4.5)
 JPEG_2000_LOSSLESS_UID = "1.2.840.10008.1.2.4.90"
-
-# JPEG 2000 Image Compression (PS3.5 A.4.5)
 JPEG_2000_UID = "1.2.840.10008.1.2.4.91"
-
-# RLE Lossless (PS3.5 A.4.2)
 RLE_LOSSLESS_UID = "1.2.840.10008.1.2.5"
-
-# High-Throughput JPEG 2000 Lossless (HTJP2K) (PS3.5 A.4.7)
 HTJP2K_LOSSLESS_UID = "1.2.840.10008.1.2.4.201"
-
-# High-Throughput JPEG 2000 with RPCL (HTJP2K-RPL) (PS3.5 A.4.7)
 HTJP2K_LOSSLESS_RPCL_UID = "1.2.840.10008.1.2.4.202"
-
-# High-Throughput JPEG 2000 (HTJP2K) (PS3.5 A.4.7)
 HTJP2K_UID = "1.2.840.10008.1.2.4.203"
 
-
-# SOP Class UIDs (PS3.4 - commonly used)
-
+# SOP Class UIDs (PS3.4)
 VERIFICATION_SOP_CLASS_UID = "1.2.840.10008.1.1"
 CT_IMAGE_STORAGE_SOP_CLASS_UID = "1.2.840.10008.5.1.4.1.1.2"
 PATIENT_ROOT_QR_FIND_SOP_CLASS_UID = "1.2.840.10008.5.1.4.1.2.1.1"
@@ -291,141 +171,82 @@ STUDY_ROOT_QR_FIND_SOP_CLASS_UID = "1.2.840.10008.5.1.4.1.2.2.1"
 STUDY_ROOT_QR_MOVE_SOP_CLASS_UID = "1.2.840.10008.5.1.4.1.2.2.2"
 STUDY_ROOT_QR_GET_SOP_CLASS_UID = "1.2.840.10008.5.1.4.1.2.2.3"
 
-
-# PDU Type Definitions (PS3.8 Section 9.3.1)
-
 PDU_TYPES = {
-    0x01: "A-ASSOCIATE-RQ",
-    0x02: "A-ASSOCIATE-AC",
-    0x03: "A-ASSOCIATE-RJ",
-    0x04: "P-DATA-TF",
-    0x05: "A-RELEASE-RQ",
-    0x06: "A-RELEASE-RP",
-    0x07: "A-ABORT",
+    0x01: "A-ASSOCIATE-RQ", 0x02: "A-ASSOCIATE-AC",
+    0x03: "A-ASSOCIATE-RJ", 0x04: "P-DATA-TF",
+    0x05: "A-RELEASE-RQ", 0x06: "A-RELEASE-RP", 0x07: "A-ABORT",
 }
-
-
-# Item Type Definitions (PS3.8 Section 9.3.2-9.3.3, PS3.7 Annex D.3.3)
 
 ITEM_TYPES = {
-    # PS3.8 defined items
-    0x10: "Application Context",
-    0x20: "Presentation Context RQ",
-    0x21: "Presentation Context AC",
-    0x30: "Abstract Syntax",
-    0x40: "Transfer Syntax",
-    0x50: "User Information",
-    0x51: "Maximum Length",
-    # PS3.7 D.3.3 defined items
-    0x52: "Implementation Class UID",
+    0x10: "Application Context", 0x20: "Presentation Context RQ",
+    0x21: "Presentation Context AC", 0x30: "Abstract Syntax",
+    0x40: "Transfer Syntax", 0x50: "User Information",
+    0x51: "Maximum Length", 0x52: "Implementation Class UID",
     0x53: "Asynchronous Operations Window",
-    0x54: "SCP/SCU Role Selection",
-    0x55: "Implementation Version Name",
+    0x54: "SCP/SCU Role Selection", 0x55: "Implementation Version Name",
     0x56: "SOP Class Extended Negotiation",
     0x57: "SOP Class Common Extended Negotiation",
-    0x58: "User Identity",
-    0x59: "User Identity Server Response",
+    0x58: "User Identity", 0x59: "User Identity Server Response",
 }
 
-
-# DIMSE Command Field Values (PS3.7 E.1-1)
-
 DIMSE_COMMAND_FIELDS = {
-    # DIMSE-C (Section 9)
-    0x0001: "C-STORE-RQ",
-    0x8001: "C-STORE-RSP",
-    0x0010: "C-GET-RQ",
-    0x8010: "C-GET-RSP",
-    0x0020: "C-FIND-RQ",
-    0x8020: "C-FIND-RSP",
-    0x0021: "C-MOVE-RQ",
-    0x8021: "C-MOVE-RSP",
-    0x0030: "C-ECHO-RQ",
-    0x8030: "C-ECHO-RSP",
-    0x0FFF: "C-CANCEL-RQ",
-    # DIMSE-N (Section 10)
-    0x0100: "N-EVENT-REPORT-RQ",
-    0x8100: "N-EVENT-REPORT-RSP",
-    0x0110: "N-GET-RQ",
-    0x8110: "N-GET-RSP",
-    0x0120: "N-SET-RQ",
-    0x8120: "N-SET-RSP",
-    0x0130: "N-ACTION-RQ",
-    0x8130: "N-ACTION-RSP",
-    0x0140: "N-CREATE-RQ",
-    0x8140: "N-CREATE-RSP",
-    0x0150: "N-DELETE-RQ",
-    0x8150: "N-DELETE-RSP",
+    0x0001: "C-STORE-RQ", 0x8001: "C-STORE-RSP",
+    0x0010: "C-GET-RQ", 0x8010: "C-GET-RSP",
+    0x0020: "C-FIND-RQ", 0x8020: "C-FIND-RSP",
+    0x0021: "C-MOVE-RQ", 0x8021: "C-MOVE-RSP",
+    0x0030: "C-ECHO-RQ", 0x8030: "C-ECHO-RSP", 0x0FFF: "C-CANCEL-RQ",
+    0x0100: "N-EVENT-REPORT-RQ", 0x8100: "N-EVENT-REPORT-RSP",
+    0x0110: "N-GET-RQ", 0x8110: "N-GET-RSP",
+    0x0120: "N-SET-RQ", 0x8120: "N-SET-RSP",
+    0x0130: "N-ACTION-RQ", 0x8130: "N-ACTION-RSP",
+    0x0140: "N-CREATE-RQ", 0x8140: "N-CREATE-RSP",
+    0x0150: "N-DELETE-RQ", 0x8150: "N-DELETE-RSP",
 }
 
 DATA_SET_TYPES = {
-    0x0000: "Data Set Present",
-    0x0001: "Data Set Present",
+    0x0000: "Data Set Present", 0x0001: "Data Set Present",
     0x0101: "No Data Set",
 }
 
-PRIORITY_VALUES = {
-    0x0000: "MEDIUM",
-    0x0001: "HIGH",
-    0x0002: "LOW",
+PRIORITY_VALUES = {0x0000: "MEDIUM", 0x0001: "HIGH", 0x0002: "LOW"}
+
+USER_IDENTITY_TYPES = {
+    1: "Username", 2: "Username and Passcode",
+    3: "Kerberos Service Ticket", 4: "SAML Assertion",
+    5: "JSON Web Token (JWT)",
 }
 
-
-# =============================================================================
 # DIMSE Status Codes (PS3.7 Annex C)
-# =============================================================================
-
-# Status Class convention per Annex C:
-# Success: 0000
-# Warning: 0001, Bxxx, 0107, 0116
-# Failure: Axxx, Cxxx, 01xx (except 0107, 0116), 02xx
-# Cancel: FE00
-# Pending: FF00, FF01
-
-STATUS_SUCCESS = 0x0000          # C.1.1 Success
-STATUS_CANCEL = 0xFE00           # C.3.1 Cancel
-STATUS_PENDING = 0xFF00          # C.2.1 Pending
-STATUS_PENDING_WARNINGS = 0xFF01  # C.2.1 Pending (with optional keys)
-
-# Warning Status Codes (C.4)
-STATUS_WARNING_ATTRIBUTE_LIST = 0x0107      # C.4.2 Attribute List warning
-STATUS_WARNING_ATTR_OUT_OF_RANGE = 0x0116   # C.4.3 Attribute Value out of range
-
-# Failure Status Codes (C.5)
-STATUS_ERR_SOP_CLASS_NOT_SUPPORTED = 0x0122  # C.5.6
-STATUS_ERR_CLASS_INSTANCE_CONFLICT = 0x0119  # C.5.7
-STATUS_ERR_DUPLICATE_SOP_INSTANCE = 0x0111   # C.5.8
-STATUS_ERR_DUPLICATE_INVOCATION = 0x0210     # C.5.9
-STATUS_ERR_INVALID_ARGUMENT = 0x0115         # C.5.10
-STATUS_ERR_INVALID_ATTRIBUTE_VALUE = 0x0106  # C.5.11
-STATUS_ERR_INVALID_SOP_INSTANCE = 0x0117     # C.5.12
-STATUS_ERR_MISSING_ATTRIBUTE = 0x0120        # C.5.13
-STATUS_ERR_MISSING_ATTRIBUTE_VALUE = 0x0121  # C.5.14
-STATUS_ERR_MISTYPED_ARGUMENT = 0x0212        # C.5.15
-STATUS_ERR_NO_SUCH_ARGUMENT = 0x0114         # C.5.16
-STATUS_ERR_NO_SUCH_ATTRIBUTE = 0x0105        # C.5.17
-STATUS_ERR_NO_SUCH_EVENT_TYPE = 0x0113       # C.5.18
-STATUS_ERR_NO_SUCH_SOP_INSTANCE = 0x0112     # C.5.19
-STATUS_ERR_NO_SUCH_SOP_CLASS = 0x0118        # C.5.20
-STATUS_ERR_PROCESSING_FAILURE = 0x0110       # C.5.21
-STATUS_ERR_RESOURCE_LIMITATION = 0x0213      # C.5.22
-STATUS_ERR_UNRECOGNIZED_OPERATION = 0x0211   # C.5.23
-STATUS_ERR_NO_SUCH_ACTION_TYPE = 0x0123      # C.5.24
-STATUS_ERR_NOT_AUTHORIZED = 0x0124           # C.5.25
-
-
-# =============================================================================
-# Utility Functions
-# =============================================================================
+STATUS_SUCCESS = 0x0000
+STATUS_CANCEL = 0xFE00
+STATUS_PENDING = 0xFF00
+STATUS_PENDING_WARNINGS = 0xFF01
+STATUS_WARNING_ATTRIBUTE_LIST = 0x0107
+STATUS_WARNING_ATTR_OUT_OF_RANGE = 0x0116
+STATUS_ERR_SOP_CLASS_NOT_SUPPORTED = 0x0122
+STATUS_ERR_CLASS_INSTANCE_CONFLICT = 0x0119
+STATUS_ERR_DUPLICATE_SOP_INSTANCE = 0x0111
+STATUS_ERR_DUPLICATE_INVOCATION = 0x0210
+STATUS_ERR_INVALID_ARGUMENT = 0x0115
+STATUS_ERR_INVALID_ATTRIBUTE_VALUE = 0x0106
+STATUS_ERR_INVALID_SOP_INSTANCE = 0x0117
+STATUS_ERR_MISSING_ATTRIBUTE = 0x0120
+STATUS_ERR_MISSING_ATTRIBUTE_VALUE = 0x0121
+STATUS_ERR_MISTYPED_ARGUMENT = 0x0212
+STATUS_ERR_NO_SUCH_ARGUMENT = 0x0114
+STATUS_ERR_NO_SUCH_ATTRIBUTE = 0x0105
+STATUS_ERR_NO_SUCH_EVENT_TYPE = 0x0113
+STATUS_ERR_NO_SUCH_SOP_INSTANCE = 0x0112
+STATUS_ERR_NO_SUCH_SOP_CLASS = 0x0118
+STATUS_ERR_PROCESSING_FAILURE = 0x0110
+STATUS_ERR_RESOURCE_LIMITATION = 0x0213
+STATUS_ERR_UNRECOGNIZED_OPERATION = 0x0211
+STATUS_ERR_NO_SUCH_ACTION_TYPE = 0x0123
+STATUS_ERR_NOT_AUTHORIZED = 0x0124
 
 
 def _uid_to_bytes(uid: Union[str, bytes]) -> bytes:
-    """
-    Convert UID to bytes with even-length padding per PS3.8 Annex F.
-
-    UIDs are encoded as ISO 646:1990-Basic G0 Set character strings.
-    DICOM UIDs shall not exceed 64 characters.
-    """
+    """Convert UID to bytes with even-length padding per PS3.8 Annex F."""
     if isinstance(uid, bytes):
         b_uid = uid
     elif isinstance(uid, str):
@@ -447,19 +268,8 @@ def _uid_to_bytes_raw(uid: Union[str, bytes]) -> bytes:
         return b""
 
 
-# =============================================================================
-# Field Classes
-# =============================================================================
-
-
 class DICOMAETitleField(StrFixedLenField):
-    """
-    DICOM AE Title field - 16 bytes, space-padded.
-
-    Per PS3.8 Section 9.3.2 Table 9-11:
-    "It shall be encoded as 16 characters as defined by the ISO 646:1990-Basic
-    G0 Set with leading and trailing spaces (20H) being non-significant."
-    """
+    """DICOM AE Title field - 16 bytes, space-padded (PS3.8 Table 9-11)."""
 
     def __init__(self, name: str, default: bytes = b"") -> None:
         super(DICOMAETitleField, self).__init__(name, default, length=16)
@@ -481,15 +291,7 @@ class DICOMAETitleField(StrFixedLenField):
 
 
 class DICOMElementField(Field[bytes, bytes]):
-    """
-    DICOM Data Element field with explicit tag and length encoding.
-
-    Per PS3.5/PS3.7, DIMSE command elements use Implicit VR Little Endian:
-    - Tag Group (2 bytes, LE)
-    - Tag Element (2 bytes, LE)
-    - Value Length (4 bytes, LE)
-    - Value (variable)
-    """
+    """DICOM Data Element field with Implicit VR Little Endian tag+length encoding."""
 
     __slots__ = ["tag_group", "tag_elem"]
 
@@ -615,13 +417,7 @@ class DICOMAEDIMSEField(DICOMElementField):
 
 
 class DICOMATField(DICOMElementField):
-    """
-    DICOM Attribute Tag (AT) element field for N-GET Attribute Identifier List.
-
-    Per PS3.7 Section 10.3.2 Table 10.3-3:
-    The Attribute Identifier List (0000,1005) contains a list of DICOM tags
-    to be retrieved.
-    """
+    """DICOM Attribute Tag (AT) element field for N-GET Attribute Identifier List."""
 
     # islist=True prevents Scapy's SetGen from yielding nothing on empty lists,
     # which would break do_build iteration.
@@ -656,19 +452,8 @@ class DICOMATField(DICOMElementField):
         return []
 
 
-# =============================================================================
-# Generic Item Handler
-# =============================================================================
-
-
 class DICOMGenericItem(Packet):
-    """
-    Generic fallback for unrecognized DICOM variable items.
-
-    Per PS3.8 Section 9.3.1:
-    "Items of unrecognized types shall be ignored and skipped."
-    """
-
+    """Generic fallback for unrecognized DICOM variable items."""
     name = "DICOM Generic Item"
     fields_desc = [
         StrLenField(
@@ -685,25 +470,12 @@ class DICOMGenericItem(Packet):
         return b"", s
 
 
-# =============================================================================
-# Variable Item Header (PS3.8 Section 9.3.2)
-# =============================================================================
-
-
 class DICOMVariableItem(Packet):
-    """
-    DICOM Variable Item header structure.
-
-    All variable items in A-ASSOCIATE-RQ/AC share this common header:
-    - Item-type (1 byte)
-    - Reserved (1 byte, shall be 0x00) - except 0x57 which uses Sub-Item-version
-    - Item-length (2 bytes, unsigned, big-endian)
-    """
-
+    """DICOM Variable Item header (PS3.8 Section 9.3.2)."""
     name = "DICOM Variable Item"
     fields_desc = [
         ByteEnumField("item_type", 0x10, ITEM_TYPES),
-        ByteField("reserved", 0),  # For 0x57: Sub-Item-version
+        ByteField("reserved", 0),
         LenField("length", None, fmt="!H"),
     ]
 
@@ -715,7 +487,6 @@ class DICOMVariableItem(Packet):
         return s, b""
 
     def guess_payload_class(self, payload: bytes) -> type:
-        """Route to appropriate item class based on item_type."""
         type_to_class = {
             0x10: DICOMApplicationContext,
             0x20: DICOMPresentationContextRQ,
@@ -739,19 +510,7 @@ class DICOMVariableItem(Packet):
         return self.sprintf("Item %item_type%")
 
 
-# =============================================================================
-# Application Context Item (PS3.8 Section 9.3.2.1)
-# =============================================================================
-
-
 class DICOMApplicationContext(Packet):
-    """
-    Application Context Item.
-
-    Per PS3.8 Section 9.3.2.1 Table 9-12:
-    Contains the Application-context-name encoded per Annex F.
-    """
-
     name = "DICOM Application Context"
     fields_desc = [
         StrLenField(
@@ -771,19 +530,7 @@ class DICOMApplicationContext(Packet):
         return "AppContext %s" % self.uid.decode("ascii").rstrip("\x00")
 
 
-# =============================================================================
-# Abstract Syntax Sub-Item (PS3.8 Section 9.3.2.2.1)
-# =============================================================================
-
-
 class DICOMAbstractSyntax(Packet):
-    """
-    Abstract Syntax Sub-Item.
-
-    Per PS3.8 Section 9.3.2.2.1 Table 9-14:
-    Contains the Abstract-syntax-name (SOP Class UID) encoded per Annex F.
-    """
-
     name = "DICOM Abstract Syntax"
     fields_desc = [
         StrLenField(
@@ -803,19 +550,7 @@ class DICOMAbstractSyntax(Packet):
         return "AbstractSyntax %s" % self.uid.decode("ascii").rstrip("\x00")
 
 
-# =============================================================================
-# Transfer Syntax Sub-Item (PS3.8 Section 9.3.2.2.2)
-# =============================================================================
-
-
 class DICOMTransferSyntax(Packet):
-    """
-    Transfer Syntax Sub-Item.
-
-    Per PS3.8 Section 9.3.2.2.2 Table 9-15:
-    Contains the Transfer-syntax-name encoded per Annex F.
-    """
-
     name = "DICOM Transfer Syntax"
     fields_desc = [
         StrLenField(
@@ -835,20 +570,7 @@ class DICOMTransferSyntax(Packet):
         return "TransferSyntax %s" % self.uid.decode("ascii").rstrip("\x00")
 
 
-# =============================================================================
-# Presentation Context Items (PS3.8 Section 9.3.2.2 / 9.3.3.2)
-# =============================================================================
-
-
 class DICOMPresentationContextRQ(Packet):
-    """
-    Presentation Context Item for A-ASSOCIATE-RQ.
-
-    Per PS3.8 Section 9.3.2.2 Table 9-13:
-    Contains one Abstract Syntax and one or more Transfer Syntaxes.
-    Presentation Context IDs shall be odd integers between 1 and 255.
-    """
-
     name = "DICOM Presentation Context RQ"
     fields_desc = [
         ByteField("context_id", 1),
@@ -875,24 +597,13 @@ class DICOMPresentationContextRQ(Packet):
 
 
 class DICOMPresentationContextAC(Packet):
-    """
-    Presentation Context Item for A-ASSOCIATE-AC.
-
-    Per PS3.8 Section 9.3.3.2 Table 9-18:
-    Contains the result of presentation context negotiation and
-    the accepted Transfer Syntax (if accepted).
-    """
-
     name = "DICOM Presentation Context AC"
-
     RESULT_CODES = {
-        0: "acceptance",
-        1: "user-rejection",
+        0: "acceptance", 1: "user-rejection",
         2: "no-reason (provider rejection)",
         3: "abstract-syntax-not-supported (provider rejection)",
         4: "transfer-syntaxes-not-supported (provider rejection)",
     }
-
     fields_desc = [
         ByteField("context_id", 1),
         ByteField("reserved1", 0),
@@ -919,27 +630,10 @@ class DICOMPresentationContextAC(Packet):
         )
 
 
-# =============================================================================
-# Maximum Length Sub-Item (PS3.8 Annex D.1)
-# =============================================================================
-
-
 class DICOMMaximumLength(Packet):
-    """
-    Maximum Length Sub-Item.
-
-    Per PS3.8 Annex D.1 Tables D.1-1 and D.1-2:
-    Allows negotiation of maximum P-DATA-TF PDU size.
-    Value of 0 indicates no maximum length specified.
-
-    This is the ONLY User Information sub-item defined in PS3.8.
-    Items 0x52-0x59 are defined in PS3.7 Annex D.3.3.
-    """
-
+    """Value of 0 indicates no maximum length specified."""
     name = "DICOM Maximum Length"
-    fields_desc = [
-        IntField("max_pdu_length", 16384),
-    ]
+    fields_desc = [IntField("max_pdu_length", 16384)]
 
     def extract_padding(self, s: bytes) -> Tuple[bytes, bytes]:
         return b"", s
@@ -950,19 +644,7 @@ class DICOMMaximumLength(Packet):
         return "MaxLength %d" % self.max_pdu_length
 
 
-# =============================================================================
-# Implementation Class UID Sub-Item (PS3.7 D.3.3.2)
-# =============================================================================
-
-
 class DICOMImplementationClassUID(Packet):
-    """
-    Implementation Class UID Sub-Item.
-
-    Per PS3.7 D.3.3.2 Tables D.3-1 and D.3-2:
-    Identifies the implementation class. Required in A-ASSOCIATE-RQ and AC.
-    """
-
     name = "DICOM Implementation Class UID"
     fields_desc = [
         StrLenField(
@@ -982,19 +664,7 @@ class DICOMImplementationClassUID(Packet):
         return "ImplClassUID %s" % self.uid.decode("ascii").rstrip("\x00")
 
 
-# =============================================================================
-# Implementation Version Name Sub-Item (PS3.7 D.3.3.2)
-# =============================================================================
-
-
 class DICOMImplementationVersionName(Packet):
-    """
-    Implementation Version Name Sub-Item.
-
-    Per PS3.7 D.3.3.2 Tables D.3-3 and D.3-4:
-    Optional identification of implementation version (1-16 characters).
-    """
-
     name = "DICOM Implementation Version Name"
     fields_desc = [
         StrLenField(
@@ -1014,20 +684,7 @@ class DICOMImplementationVersionName(Packet):
         return "ImplVersion %s" % self.name.decode("ascii").rstrip("\x00")
 
 
-# =============================================================================
-# Asynchronous Operations Window Sub-Item (PS3.7 D.3.3.3)
-# =============================================================================
-
-
 class DICOMAsyncOperationsWindow(Packet):
-    """
-    Asynchronous Operations Window Sub-Item.
-
-    Per PS3.7 D.3.3.3 Tables D.3-7 and D.3-8:
-    Allows negotiation of asynchronous operations on the association.
-    Value of 0 means unlimited. Default (absence) means 1,1 (synchronous).
-    """
-
     name = "DICOM Async Operations Window"
     fields_desc = [
         ShortField("max_ops_invoked", 1),
@@ -1043,26 +700,14 @@ class DICOMAsyncOperationsWindow(Packet):
         )
 
 
-# =============================================================================
-# SCP/SCU Role Selection Sub-Item (PS3.7 D.3.3.4)
-# =============================================================================
-
-
 class DICOMSCPSCURoleSelection(Packet):
-    """
-    SCP/SCU Role Selection Sub-Item.
-
-    Per PS3.7 D.3.3.4 Tables D.3-9 and D.3-10:
-    Allows negotiation of SCP and SCU roles for a SOP Class.
-    """
-
     name = "DICOM SCP/SCU Role Selection"
     fields_desc = [
         FieldLenField("uid_length", None, length_of="sop_class_uid", fmt="!H"),
         StrLenField("sop_class_uid", b"",
                     length_from=lambda pkt: pkt.uid_length),
-        ByteField("scu_role", 0),  # 0=non-support, 1=support
-        ByteField("scp_role", 0),  # 0=non-support, 1=support
+        ByteField("scu_role", 0),
+        ByteField("scp_role", 0),
     ]
 
     def extract_padding(self, s: bytes) -> Tuple[bytes, bytes]:
@@ -1072,19 +717,7 @@ class DICOMSCPSCURoleSelection(Packet):
         return "RoleSelection SCU=%d SCP=%d" % (self.scu_role, self.scp_role)
 
 
-# =============================================================================
-# SOP Class Extended Negotiation Sub-Item (PS3.7 D.3.3.5)
-# =============================================================================
-
-
 class DICOMSOPClassExtendedNegotiation(Packet):
-    """
-    SOP Class Extended Negotiation Sub-Item.
-
-    Per PS3.7 D.3.3.5 Table D.3-11:
-    Allows application-specific negotiation for a SOP Class.
-    """
-
     name = "DICOM SOP Class Extended Negotiation"
     fields_desc = [
         FieldLenField("sop_class_uid_length", None,
@@ -1107,22 +740,8 @@ class DICOMSOPClassExtendedNegotiation(Packet):
         return "SOPClassExtNeg %s" % uid
 
 
-# =============================================================================
-# SOP Class Common Extended Negotiation Sub-Item (PS3.7 D.3.3.6)
-# =============================================================================
-
-
 class DICOMSOPClassCommonExtendedNegotiation(Packet):
-    """
-    SOP Class Common Extended Negotiation Sub-Item.
-
-    Per PS3.7 D.3.3.6 Table D.3-12:
-    Allows service class-level negotiation. Only in A-ASSOCIATE-RQ.
-
-    Note: For this item type (0x57), byte 2 of the header is Sub-Item-version
-    (not reserved). The version defined in PS3.7 2025e is 0.
-    """
-
+    """For item type 0x57, byte 2 of the header is Sub-Item-version (not reserved)."""
     name = "DICOM SOP Class Common Extended Negotiation"
     fields_desc = [
         FieldLenField("sop_class_uid_length", None,
@@ -1147,28 +766,7 @@ class DICOMSOPClassCommonExtendedNegotiation(Packet):
         return "SOPClassCommonExtNeg %s" % uid
 
 
-# =============================================================================
-# User Identity Sub-Items (PS3.7 D.3.3.7)
-# =============================================================================
-
-
-USER_IDENTITY_TYPES = {
-    1: "Username",
-    2: "Username and Passcode",
-    3: "Kerberos Service Ticket",
-    4: "SAML Assertion",
-    5: "JSON Web Token (JWT)",
-}
-
-
 class DICOMUserIdentity(Packet):
-    """
-    User Identity Sub-Item (A-ASSOCIATE-RQ).
-
-    Per PS3.7 D.3.3.7 Table D.3-14:
-    Allows user identity negotiation during association.
-    """
-
     name = "DICOM User Identity"
     fields_desc = [
         ByteEnumField("user_identity_type", 1, USER_IDENTITY_TYPES),
@@ -1197,13 +795,6 @@ class DICOMUserIdentity(Packet):
 
 
 class DICOMUserIdentityResponse(Packet):
-    """
-    User Identity Server Response Sub-Item (A-ASSOCIATE-AC).
-
-    Per PS3.7 D.3.3.7 Table D.3-15:
-    Server response to user identity negotiation.
-    """
-
     name = "DICOM User Identity Response"
     fields_desc = [
         FieldLenField("response_length", None,
@@ -1219,23 +810,7 @@ class DICOMUserIdentityResponse(Packet):
         return "UserIdentityResponse"
 
 
-# =============================================================================
-# User Information Item (PS3.8 Section 9.3.2.3)
-# =============================================================================
-
-
 class DICOMUserInformation(Packet):
-    """
-    User Information Item.
-
-    Per PS3.8 Section 9.3.2.3 Table 9-16:
-    Contains User-data sub-items. The structure of these sub-items
-    is defined in PS3.8 Annex D (Maximum Length) and PS3.7 D.3.3.
-
-    Note: "User-Data Sub-Items may be present in any order within the
-    User-Information Item. No significance should be placed on the order."
-    """
-
     name = "DICOM User Information"
     fields_desc = [
         PacketListField(
@@ -1257,10 +832,7 @@ class DICOMUserInformation(Packet):
         return "UserInfo (%d items)" % len(self.sub_items)
 
 
-# =============================================================================
 # Layer Bindings for Variable Items
-# =============================================================================
-
 bind_layers(DICOMVariableItem, DICOMApplicationContext, item_type=0x10)
 bind_layers(DICOMVariableItem, DICOMPresentationContextRQ, item_type=0x20)
 bind_layers(DICOMVariableItem, DICOMPresentationContextAC, item_type=0x21)
@@ -1280,25 +852,8 @@ bind_layers(DICOMVariableItem, DICOMUserIdentityResponse, item_type=0x59)
 bind_layers(DICOMVariableItem, DICOMGenericItem)
 
 
-# =============================================================================
-# DICOM Upper Layer PDU Header (PS3.8 Section 9.3.1)
-# =============================================================================
-
-
 class DICOM(Packet):
-    """
-    DICOM Upper Layer PDU Header.
-
-    Per PS3.8 Section 9.3.1:
-    All PDUs share this common 6-byte header structure:
-    - PDU-type (1 byte)
-    - Reserved (1 byte, shall be 0x00)
-    - PDU-length (4 bytes, unsigned, big-endian)
-
-    The PDU-length is the number of bytes from the first byte of the
-    following field to the last byte of the variable field.
-    """
-
+    """DICOM Upper Layer PDU Header (PS3.8 Section 9.3.1)."""
     name = "DICOM UL"
     fields_desc = [
         ByteEnumField("pdu_type", 0x01, PDU_TYPES),
@@ -1315,35 +870,15 @@ class DICOM(Packet):
         return self.sprintf("DICOM %pdu_type%")
 
 
-# =============================================================================
-# Presentation Data Value Item (PS3.8 Section 9.3.5.1)
-# =============================================================================
-
-
 class PresentationDataValueItem(Packet):
-    """
-    Presentation Data Value (PDV) Item within P-DATA-TF PDU.
-
-    Per PS3.8 Section 9.3.5.1 Table 9-23:
-    - Item-length (4 bytes): includes context_id and message control header
-    - Presentation-context-ID (1 byte): odd integer 1-255
-    - Presentation-data-value: includes Message Control Header (Annex E.2)
-
-    Message Control Header (first byte of data per PS3.8 Annex E.2):
-    - Bit 0: 1=Command, 0=Data
-    - Bit 1: 1=Last fragment, 0=Not last fragment
-    - Bits 2-7: Reserved (always 0)
-    """
-
     name = "PresentationDataValueItem"
     fields_desc = [
         FieldLenField("length", None, length_of="data", fmt="!I",
                       adjust=lambda pkt, x: x + 2),
         ByteField("context_id", 1),
-        # Message Control Header per PS3.8 Annex E.2
-        BitField("reserved_bits", 0, 6),  # Bits 7-2: reserved
-        BitField("is_last", 0, 1),        # Bit 1: last fragment flag
-        BitField("is_command", 0, 1),     # Bit 0: command/data flag
+        BitField("reserved_bits", 0, 6),
+        BitField("is_last", 0, 1),
+        BitField("is_command", 0, 1),
         StrLenField("data", b"",
                     length_from=lambda pkt: max(0, (pkt.length or 2) - 2)),
     ]
@@ -1359,22 +894,10 @@ class PresentationDataValueItem(Packet):
         )
 
 
-# =============================================================================
-# A-ASSOCIATE-RQ PDU (PS3.8 Section 9.3.2)
-# =============================================================================
-
-
 class A_ASSOCIATE_RQ(Packet):
-    """
-    A-ASSOCIATE-RQ PDU for initiating DICOM associations.
-
-    Per PS3.8 Section 9.3.2 Table 9-11:
-    Used by the association-requestor to propose an association.
-    """
-
     name = "A-ASSOCIATE-RQ"
     fields_desc = [
-        ShortField("protocol_version", 1),  # Bit 0 set for version 1
+        ShortField("protocol_version", 1),
         ShortField("reserved1", 0),
         DICOMAETitleField("called_ae_title", b""),
         DICOMAETitleField("calling_ae_title", b""),
@@ -1404,27 +927,14 @@ class A_ASSOCIATE_RQ(Packet):
         return self.called_ae_title + self.calling_ae_title
 
 
-# =============================================================================
-# A-ASSOCIATE-AC PDU (PS3.8 Section 9.3.3)
-# =============================================================================
-
-
 class A_ASSOCIATE_AC(Packet):
-    """
-    A-ASSOCIATE-AC PDU for accepting DICOM associations.
-
-    Per PS3.8 Section 9.3.3 Table 9-17:
-    Used by the association-acceptor to accept an association.
-    Reserved fields shall contain the same values as received in the RQ.
-    """
-
     name = "A-ASSOCIATE-AC"
     fields_desc = [
         ShortField("protocol_version", 1),
         ShortField("reserved1", 0),
-        DICOMAETitleField("called_ae_title", b""),   # Echo from RQ
-        DICOMAETitleField("calling_ae_title", b""),  # Echo from RQ
-        StrFixedLenField("reserved2", b"\x00" * 32, 32),  # Echo from RQ
+        DICOMAETitleField("called_ae_title", b""),
+        DICOMAETitleField("calling_ae_title", b""),
+        StrFixedLenField("reserved2", b"\x00" * 32, 32),
         PacketListField(
             "variable_items", [],
             DICOMVariableItem,
@@ -1453,51 +963,23 @@ class A_ASSOCIATE_AC(Packet):
         return isinstance(other, A_ASSOCIATE_RQ)
 
 
-# =============================================================================
-# A-ASSOCIATE-RJ PDU (PS3.8 Section 9.3.4)
-# =============================================================================
-
-
 class A_ASSOCIATE_RJ(Packet):
-    """
-    A-ASSOCIATE-RJ PDU for rejecting DICOM associations.
-
-    Per PS3.8 Section 9.3.4 Table 9-21:
-    Used to reject an association request.
-    """
-
     name = "A-ASSOCIATE-RJ"
-
-    RESULT_CODES = {
-        1: "rejected-permanent",
-        2: "rejected-transient",
-    }
-
+    RESULT_CODES = {1: "rejected-permanent", 2: "rejected-transient"}
     SOURCE_CODES = {
         1: "DICOM UL service-user",
         2: "DICOM UL service-provider (ACSE related function)",
         3: "DICOM UL service-provider (Presentation related function)",
     }
-
-    # Reason/Diagnostic codes depend on Source field value
     REASON_USER = {
-        1: "no-reason-given",
-        2: "application-context-name-not-supported",
+        1: "no-reason-given", 2: "application-context-name-not-supported",
         3: "calling-AE-title-not-recognized",
         7: "called-AE-title-not-recognized",
     }
-
-    REASON_ACSE = {
-        1: "no-reason-given",
-        2: "protocol-version-not-supported",
-    }
-
+    REASON_ACSE = {1: "no-reason-given", 2: "protocol-version-not-supported"}
     REASON_PRESENTATION = {
-        0: "reserved",
-        1: "temporary-congestion",
-        2: "local-limit-exceeded",
+        0: "reserved", 1: "temporary-congestion", 2: "local-limit-exceeded",
     }
-
     fields_desc = [
         ByteField("reserved1", 0),
         ByteEnumField("result", 1, RESULT_CODES),
@@ -1512,20 +994,7 @@ class A_ASSOCIATE_RJ(Packet):
         return isinstance(other, A_ASSOCIATE_RQ)
 
 
-# =============================================================================
-# P-DATA-TF PDU (PS3.8 Section 9.3.5)
-# =============================================================================
-
-
 class P_DATA_TF(Packet):
-    """
-    P-DATA-TF PDU for transferring DICOM data.
-
-    Per PS3.8 Section 9.3.5 Table 9-22:
-    Contains one or more Presentation Data Value Items.
-    Used to transfer DICOM Messages (Command and Data Sets).
-    """
-
     name = "P-DATA-TF"
     fields_desc = [
         PacketListField(
@@ -1544,19 +1013,7 @@ class P_DATA_TF(Packet):
         return "P-DATA-TF (%d PDVs)" % len(self.pdv_items)
 
 
-# =============================================================================
-# A-RELEASE PDUs (PS3.8 Section 9.3.6/9.3.7)
-# =============================================================================
-
-
 class A_RELEASE_RQ(Packet):
-    """
-    A-RELEASE-RQ PDU for requesting graceful association release.
-
-    Per PS3.8 Section 9.3.6 Table 9-24:
-    Fixed 4-byte reserved field.
-    """
-
     name = "A-RELEASE-RQ"
     fields_desc = [IntField("reserved1", 0)]
 
@@ -1565,13 +1022,6 @@ class A_RELEASE_RQ(Packet):
 
 
 class A_RELEASE_RP(Packet):
-    """
-    A-RELEASE-RP PDU for confirming graceful association release.
-
-    Per PS3.8 Section 9.3.7 Table 9-25:
-    Fixed 4-byte reserved field.
-    """
-
     name = "A-RELEASE-RP"
     fields_desc = [IntField("reserved1", 0)]
 
@@ -1582,38 +1032,19 @@ class A_RELEASE_RP(Packet):
         return isinstance(other, A_RELEASE_RQ)
 
 
-# =============================================================================
-# A-ABORT PDU (PS3.8 Section 9.3.8)
-# =============================================================================
-
-
 class A_ABORT(Packet):
-    """
-    A-ABORT PDU for aborting DICOM associations.
-
-    Per PS3.8 Section 9.3.8 Table 9-26:
-    Supports both A-ABORT (user initiated) and A-P-ABORT (provider initiated).
-    """
-
     name = "A-ABORT"
-
     SOURCE_CODES = {
         0: "DICOM UL service-user (initiated abort)",
         1: "reserved",
         2: "DICOM UL service-provider (initiated abort)",
     }
-
-    # Reason/Diagnostic codes (only meaningful when source=2)
     REASON_PROVIDER = {
-        0: "reason-not-specified",
-        1: "unrecognized-PDU",
-        2: "unexpected-PDU",
-        3: "reserved",
-        4: "unrecognized-PDU-parameter",
-        5: "unexpected-PDU-parameter",
+        0: "reason-not-specified", 1: "unrecognized-PDU",
+        2: "unexpected-PDU", 3: "reserved",
+        4: "unrecognized-PDU-parameter", 5: "unexpected-PDU-parameter",
         6: "invalid-PDU-parameter-value",
     }
-
     fields_desc = [
         ByteField("reserved1", 0),
         ByteField("reserved2", 0),
@@ -1625,15 +1056,11 @@ class A_ABORT(Packet):
         return self.sprintf("A-ABORT %source%")
 
 
-# =============================================================================
-# TCP Port and PDU Type Bindings (PS3.8 Section 9.1)
-# =============================================================================
-
+# TCP Port and PDU Type Bindings
 bind_layers(TCP, DICOM, dport=DICOM_PORT)
 bind_layers(TCP, DICOM, sport=DICOM_PORT)
 bind_layers(TCP, DICOM, dport=DICOM_PORT_ALT)
 bind_layers(TCP, DICOM, sport=DICOM_PORT_ALT)
-
 bind_layers(DICOM, A_ASSOCIATE_RQ, pdu_type=0x01)
 bind_layers(DICOM, A_ASSOCIATE_AC, pdu_type=0x02)
 bind_layers(DICOM, A_ASSOCIATE_RJ, pdu_type=0x03)
@@ -1643,42 +1070,18 @@ bind_layers(DICOM, A_RELEASE_RP, pdu_type=0x06)
 bind_layers(DICOM, A_ABORT, pdu_type=0x07)
 
 
-# =============================================================================
-# DIMSE Base Class (PS3.7 Section 9)
-# =============================================================================
-
-
 class DIMSEPacket(Packet):
-    """
-    Base class for DIMSE command packets with automatic group length.
-
-    Per PS3.7, all DIMSE commands include a Command Group Length element
-    (0000,0000) as the first element, containing the byte count of the
-    remaining command elements.
-    """
-
-    GROUP_LENGTH_ELEMENT_SIZE = 12  # Tag (4) + Length (4) + Value (4)
+    """Base class for DIMSE commands; auto-prepends Command Group Length (0000,0000)."""
+    GROUP_LENGTH_ELEMENT_SIZE = 12
 
     def post_build(self, pkt: bytes, pay: bytes) -> bytes:
-        """Prepend Command Group Length element."""
         group_len = len(pkt)
-        header = struct.pack("<HHI", 0x0000, 0x0000, 4)  # Tag + VL
-        header += struct.pack("<I", group_len)  # Value
+        header = struct.pack("<HHI", 0x0000, 0x0000, 4)
+        header += struct.pack("<I", group_len)
         return header + pkt + pay
 
 
-# =============================================================================
-# DIMSE-C Commands (PS3.7 Section 9.3)
-# =============================================================================
-
-
 class C_ECHO_RQ(DIMSEPacket):
-    """
-    C-ECHO-RQ DIMSE Command for verification (PS3.7 Section 9.3.5).
-
-    Per Table 9.3-12.
-    """
-
     name = "C-ECHO-RQ"
     fields_desc = [
         DICOMUIDField("affected_sop_class_uid",
@@ -1696,12 +1099,6 @@ class C_ECHO_RQ(DIMSEPacket):
 
 
 class C_ECHO_RSP(DIMSEPacket):
-    """
-    C-ECHO-RSP DIMSE Response (PS3.7 Section 9.3.5).
-
-    Per Table 9.3-13.
-    """
-
     name = "C-ECHO-RSP"
     fields_desc = [
         DICOMUIDField("affected_sop_class_uid",
@@ -1725,12 +1122,6 @@ class C_ECHO_RSP(DIMSEPacket):
 
 
 class C_STORE_RQ(DIMSEPacket):
-    """
-    C-STORE-RQ DIMSE Command for storing objects (PS3.7 Section 9.3.1).
-
-    Per Table 9.3-1. Includes optional Move Originator fields.
-    """
-
     name = "C-STORE-RQ"
     fields_desc = [
         DICOMUIDField("affected_sop_class_uid",
@@ -1741,7 +1132,6 @@ class C_STORE_RQ(DIMSEPacket):
         DICOMUSField("data_set_type", 0x0000, 0x0000, 0x0800),
         DICOMUIDField("affected_sop_instance_uid",
                       "1.2.3.4.5.6.7.8.9", 0x0000, 0x1000),
-        # Optional: Move Originator fields (used in C-MOVE sub-operations)
         ConditionalField(
             DICOMAEDIMSEField("move_originator_ae_title", b"", 0x0000, 0x1030),
             lambda pkt: pkt.fields.get("move_originator_ae_title")
@@ -1762,12 +1152,6 @@ class C_STORE_RQ(DIMSEPacket):
 
 
 class C_STORE_RSP(DIMSEPacket):
-    """
-    C-STORE-RSP DIMSE Response (PS3.7 Section 9.3.1).
-
-    Per Table 9.3-2.
-    """
-
     name = "C-STORE-RSP"
     fields_desc = [
         DICOMUIDField("affected_sop_class_uid",
@@ -1793,12 +1177,6 @@ class C_STORE_RSP(DIMSEPacket):
 
 
 class C_FIND_RQ(DIMSEPacket):
-    """
-    C-FIND-RQ DIMSE Command for querying (PS3.7 Section 9.3.2).
-
-    Per Table 9.3-3.
-    """
-
     name = "C-FIND-RQ"
     fields_desc = [
         DICOMUIDField("affected_sop_class_uid",
@@ -1817,12 +1195,6 @@ class C_FIND_RQ(DIMSEPacket):
 
 
 class C_FIND_RSP(DIMSEPacket):
-    """
-    C-FIND-RSP DIMSE Response (PS3.7 Section 9.3.2).
-
-    Per Table 9.3-4.
-    """
-
     name = "C-FIND-RSP"
     fields_desc = [
         DICOMUIDField("affected_sop_class_uid",
@@ -1846,12 +1218,6 @@ class C_FIND_RSP(DIMSEPacket):
 
 
 class C_GET_RQ(DIMSEPacket):
-    """
-    C-GET-RQ DIMSE Command for retrieval (PS3.7 Section 9.3.3).
-
-    Per Table 9.3-6.
-    """
-
     name = "C-GET-RQ"
     fields_desc = [
         DICOMUIDField("affected_sop_class_uid",
@@ -1870,12 +1236,6 @@ class C_GET_RQ(DIMSEPacket):
 
 
 class C_GET_RSP(DIMSEPacket):
-    """
-    C-GET-RSP DIMSE Response (PS3.7 Section 9.3.3).
-
-    Per Table 9.3-7. Sub-operation counts required when status=Pending.
-    """
-
     name = "C-GET-RSP"
     fields_desc = [
         DICOMUIDField("affected_sop_class_uid",
@@ -1903,20 +1263,13 @@ class C_GET_RSP(DIMSEPacket):
 
 
 class C_MOVE_RQ(DIMSEPacket):
-    """
-    C-MOVE-RQ DIMSE Command for retrieval (PS3.7 Section 9.3.4).
-
-    Per Table 9.3-9.
-    Note: Fields must be in increasing tag order per Section 6.3.1.
-    """
-
+    """Move Destination (0000,0600) must precede Priority (0000,0700) per Section 6.3.1."""
     name = "C-MOVE-RQ"
     fields_desc = [
         DICOMUIDField("affected_sop_class_uid",
                       PATIENT_ROOT_QR_MOVE_SOP_CLASS_UID, 0x0000, 0x0002),
         DICOMUSField("command_field", 0x0021, 0x0000, 0x0100),
         DICOMUSField("message_id", 1, 0x0000, 0x0110),
-        # Move Destination (0000,0600) must precede Priority (0000,0700)
         DICOMAEDIMSEField("move_destination", b"", 0x0000, 0x0600),
         DICOMUSField("priority", 0x0002, 0x0000, 0x0700),
         DICOMUSField("data_set_type", 0x0000, 0x0000, 0x0800),
@@ -1930,12 +1283,6 @@ class C_MOVE_RQ(DIMSEPacket):
 
 
 class C_MOVE_RSP(DIMSEPacket):
-    """
-    C-MOVE-RSP DIMSE Response (PS3.7 Section 9.3.4).
-
-    Per Table 9.3-10. Sub-operation counts required when status=Pending.
-    """
-
     name = "C-MOVE-RSP"
     fields_desc = [
         DICOMUIDField("affected_sop_class_uid",
@@ -1963,13 +1310,6 @@ class C_MOVE_RSP(DIMSEPacket):
 
 
 class C_CANCEL_RQ(DIMSEPacket):
-    """
-    C-CANCEL-RQ DIMSE Command for canceling operations (PS3.7 Section 9.3.2-9.3.4).
-
-    Per Tables 9.3-5, 9.3-8, 9.3-11.
-    Used to cancel pending C-FIND, C-GET, or C-MOVE operations.
-    """
-
     name = "C-CANCEL-RQ"
     fields_desc = [
         DICOMUSField("command_field", 0x0FFF, 0x0000, 0x0100),
@@ -1983,18 +1323,7 @@ class C_CANCEL_RQ(DIMSEPacket):
         )
 
 
-# =============================================================================
-# DIMSE-N Commands (PS3.7 Section 10.3)
-# =============================================================================
-
-
 class N_EVENT_REPORT_RQ(DIMSEPacket):
-    """
-    N-EVENT-REPORT-RQ DIMSE Notification (PS3.7 Section 10.3.1).
-
-    Per Table 10.3-1.
-    """
-
     name = "N-EVENT-REPORT-RQ"
     fields_desc = [
         DICOMUIDField("affected_sop_class_uid", "", 0x0000, 0x0002),
@@ -2013,12 +1342,6 @@ class N_EVENT_REPORT_RQ(DIMSEPacket):
 
 
 class N_EVENT_REPORT_RSP(DIMSEPacket):
-    """
-    N-EVENT-REPORT-RSP DIMSE Response (PS3.7 Section 10.3.1).
-
-    Per Table 10.3-2.
-    """
-
     name = "N-EVENT-REPORT-RSP"
     fields_desc = [
         DICOMUIDField("affected_sop_class_uid", "", 0x0000, 0x0002),
@@ -2043,12 +1366,6 @@ class N_EVENT_REPORT_RSP(DIMSEPacket):
 
 
 class N_GET_RQ(DIMSEPacket):
-    """
-    N-GET-RQ DIMSE Command (PS3.7 Section 10.3.2).
-
-    Per Table 10.3-3.
-    """
-
     name = "N-GET-RQ"
     fields_desc = [
         DICOMUIDField("requested_sop_class_uid", "", 0x0000, 0x0003),
@@ -2067,12 +1384,6 @@ class N_GET_RQ(DIMSEPacket):
 
 
 class N_GET_RSP(DIMSEPacket):
-    """
-    N-GET-RSP DIMSE Response (PS3.7 Section 10.3.2).
-
-    Per Table 10.3-4.
-    """
-
     name = "N-GET-RSP"
     fields_desc = [
         DICOMUIDField("affected_sop_class_uid", "", 0x0000, 0x0002),
@@ -2096,12 +1407,6 @@ class N_GET_RSP(DIMSEPacket):
 
 
 class N_SET_RQ(DIMSEPacket):
-    """
-    N-SET-RQ DIMSE Command (PS3.7 Section 10.3.3).
-
-    Per Table 10.3-5.
-    """
-
     name = "N-SET-RQ"
     fields_desc = [
         DICOMUIDField("requested_sop_class_uid", "", 0x0000, 0x0003),
@@ -2119,12 +1424,6 @@ class N_SET_RQ(DIMSEPacket):
 
 
 class N_SET_RSP(DIMSEPacket):
-    """
-    N-SET-RSP DIMSE Response (PS3.7 Section 10.3.3).
-
-    Per Table 10.3-6.
-    """
-
     name = "N-SET-RSP"
     fields_desc = [
         DICOMUIDField("affected_sop_class_uid", "", 0x0000, 0x0002),
@@ -2148,12 +1447,6 @@ class N_SET_RSP(DIMSEPacket):
 
 
 class N_ACTION_RQ(DIMSEPacket):
-    """
-    N-ACTION-RQ DIMSE Command (PS3.7 Section 10.3.4).
-
-    Per Table 10.3-7.
-    """
-
     name = "N-ACTION-RQ"
     fields_desc = [
         DICOMUIDField("requested_sop_class_uid", "", 0x0000, 0x0003),
@@ -2172,12 +1465,6 @@ class N_ACTION_RQ(DIMSEPacket):
 
 
 class N_ACTION_RSP(DIMSEPacket):
-    """
-    N-ACTION-RSP DIMSE Response (PS3.7 Section 10.3.4).
-
-    Per Table 10.3-8.
-    """
-
     name = "N-ACTION-RSP"
     fields_desc = [
         DICOMUIDField("affected_sop_class_uid", "", 0x0000, 0x0002),
@@ -2202,12 +1489,6 @@ class N_ACTION_RSP(DIMSEPacket):
 
 
 class N_CREATE_RQ(DIMSEPacket):
-    """
-    N-CREATE-RQ DIMSE Command (PS3.7 Section 10.3.5).
-
-    Per Table 10.3-9.
-    """
-
     name = "N-CREATE-RQ"
     fields_desc = [
         DICOMUIDField("affected_sop_class_uid", "", 0x0000, 0x0002),
@@ -2225,12 +1506,6 @@ class N_CREATE_RQ(DIMSEPacket):
 
 
 class N_CREATE_RSP(DIMSEPacket):
-    """
-    N-CREATE-RSP DIMSE Response (PS3.7 Section 10.3.5).
-
-    Per Table 10.3-10.
-    """
-
     name = "N-CREATE-RSP"
     fields_desc = [
         DICOMUIDField("affected_sop_class_uid", "", 0x0000, 0x0002),
@@ -2254,12 +1529,6 @@ class N_CREATE_RSP(DIMSEPacket):
 
 
 class N_DELETE_RQ(DIMSEPacket):
-    """
-    N-DELETE-RQ DIMSE Command (PS3.7 Section 10.3.6).
-
-    Per Table 10.3-11.
-    """
-
     name = "N-DELETE-RQ"
     fields_desc = [
         DICOMUIDField("requested_sop_class_uid", "", 0x0000, 0x0003),
@@ -2277,12 +1546,6 @@ class N_DELETE_RQ(DIMSEPacket):
 
 
 class N_DELETE_RSP(DIMSEPacket):
-    """
-    N-DELETE-RSP DIMSE Response (PS3.7 Section 10.3.6).
-
-    Per Table 10.3-12.
-    """
-
     name = "N-DELETE-RSP"
     fields_desc = [
         DICOMUIDField("affected_sop_class_uid", "", 0x0000, 0x0002),
@@ -2305,25 +1568,8 @@ class N_DELETE_RSP(DIMSEPacket):
         return 0
 
 
-# =============================================================================
-# DIMSE Status Parser
-# =============================================================================
-
-
 def parse_dimse_status(dimse_bytes: bytes) -> Optional[int]:
-    """
-    Extract status code from DIMSE response bytes.
-
-    Parses the Command Group Length and searches for the Status element
-    (0000,0900) within the command data set.
-
-    Status code meanings per PS3.7 Annex C:
-    - 0x0000: Success
-    - 0xFFxx: Pending
-    - 0xFE00: Cancel
-    - 0x01xx: Warning
-    - 0x0Axx-0x0Cxx: Failure
-    """
+    """Extract status code (0000,0900) from DIMSE response bytes."""
     try:
         if len(dimse_bytes) < 12:
             return None
@@ -2355,25 +1601,18 @@ def parse_dimse_status(dimse_bytes: bytes) -> Optional[int]:
     return None
 
 
-# =============================================================================
-# Builder Helpers
-# =============================================================================
-
-
 def build_presentation_context_rq(context_id: int,
                                   abstract_syntax_uid: str,
                                   transfer_syntax_uids: List[str]) -> Packet:
     """Build a Presentation Context RQ item."""
     abs_uid = _uid_to_bytes(abstract_syntax_uid)
     abs_syn = DICOMVariableItem() / DICOMAbstractSyntax(uid=abs_uid)
-
     sub_items = [abs_syn]
     for ts_uid in transfer_syntax_uids:
         ts = DICOMVariableItem() / DICOMTransferSyntax(
             uid=_uid_to_bytes(ts_uid)
         )
         sub_items.append(ts)
-
     return DICOMVariableItem() / DICOMPresentationContextRQ(
         context_id=context_id,
         sub_items=sub_items,
@@ -2391,13 +1630,11 @@ def build_user_information(
             max_pdu_length=max_pdu_length
         )
     ]
-
     if implementation_class_uid:
         uid = _uid_to_bytes(implementation_class_uid)
         sub_items.append(
             DICOMVariableItem() / DICOMImplementationClassUID(uid=uid)
         )
-
     if implementation_version:
         if isinstance(implementation_version, bytes):
             ver_bytes = implementation_version
@@ -2408,13 +1645,7 @@ def build_user_information(
                 name=ver_bytes
             )
         )
-
     return DICOMVariableItem() / DICOMUserInformation(sub_items=sub_items)
-
-
-# =============================================================================
-# DICOMSocket - Application-layer Socket
-# =============================================================================
 
 
 class DICOMSocket:
@@ -2450,7 +1681,6 @@ class DICOMSocket:
         return False
 
     def connect(self) -> bool:
-        """Establish TCP connection to the DICOM peer."""
         try:
             self.sock = socket.create_connection(
                 (self.dst_ip, self.dst_port),
@@ -2463,11 +1693,9 @@ class DICOMSocket:
             return False
 
     def send(self, pkt: Packet) -> None:
-        """Send a DICOM PDU."""
         self.stream.send(pkt)
 
     def recv(self) -> Optional[Packet]:
-        """Receive a DICOM PDU."""
         try:
             return self.stream.recv()
         except socket.timeout:
@@ -2477,7 +1705,6 @@ class DICOMSocket:
             return None
 
     def sr1(self, *args: Any, **kargs: Any) -> Optional[Packet]:
-        """Send one packet and receive one answer."""
         timeout = kargs.pop("timeout", self.read_timeout)
         try:
             return self.stream.sr1(*args, timeout=timeout, **kargs)
@@ -2486,7 +1713,6 @@ class DICOMSocket:
             return None
 
     def send_raw_bytes(self, raw_bytes: bytes) -> None:
-        """Send raw bytes on the underlying TCP socket."""
         self.sock.sendall(raw_bytes)
 
     def associate(self, requested_contexts: Optional[
@@ -2508,7 +1734,6 @@ class DICOMSocket:
             }
 
         self._proposed_context_map = {}
-
         variable_items: List[Packet] = [
             DICOMVariableItem() / DICOMApplicationContext()
         ]
@@ -2554,7 +1779,6 @@ class DICOMSocket:
         return False
 
     def _parse_max_pdu_length(self, response: Packet) -> None:
-        """Extract negotiated maximum PDU length from A-ASSOCIATE-AC."""
         try:
             for item in response[A_ASSOCIATE_AC].variable_items:
                 if item.item_type != 0x50:
@@ -2578,7 +1802,6 @@ class DICOMSocket:
         self.max_pdu_length = self._proposed_max_pdu
 
     def _parse_accepted_contexts(self, response: Packet) -> None:
-        """Extract accepted presentation contexts from A-ASSOCIATE-AC."""
         for item in response[A_ASSOCIATE_AC].variable_items:
             if item.item_type != 0x21:
                 continue
@@ -2587,14 +1810,11 @@ class DICOMSocket:
             pctx = item[DICOMPresentationContextAC]
             ctx_id = pctx.context_id
             result = pctx.result
-
             if result != 0:
                 continue
-
             abs_syntax = self._proposed_context_map.get(ctx_id)
             if abs_syntax is None:
                 continue
-
             for sub_item in pctx.sub_items:
                 if sub_item.item_type != 0x40:
                     continue
@@ -2606,7 +1826,6 @@ class DICOMSocket:
                 break
 
     def _get_next_message_id(self) -> int:
-        """Return an incrementing DIMSE message ID (wraps at 0xFFFF)."""
         self._current_message_id_counter += 1
         return self._current_message_id_counter & 0xFFFF
 
@@ -2614,7 +1833,6 @@ class DICOMSocket:
         self, sop_class_uid: str,
         transfer_syntax_uid: Optional[str] = None
     ) -> Optional[int]:
-        """Find a presentation context ID for a given SOP/TS pair."""
         for ctx_id, (abs_syntax, ts_syntax) in self.accepted_contexts.items():
             if abs_syntax == sop_class_uid:
                 if (transfer_syntax_uid is None
@@ -2743,24 +1961,16 @@ class DICOMSocket:
         return None
 
     def release(self) -> bool:
-        """
-        Send A-RELEASE-RQ and wait for A-RELEASE-RP.
-
-        :returns: True if release confirmed, False otherwise.
-        """
         if not self.assoc_established:
             return True
-
         release_rq = DICOM() / A_RELEASE_RQ()
         response = self.sr1(release_rq)
         self.close()
-
         if response:
             return response.haslayer(A_RELEASE_RP)
         return False
 
     def close(self) -> None:
-        """Close the underlying TCP connection and reset state."""
         if self.stream:
             try:
                 self.stream.close()
