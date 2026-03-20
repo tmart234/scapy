@@ -1,5 +1,4 @@
 % DICOM (Digital Imaging and Communications in Medicine) tests
-
 # Type the following command to launch the tests:
 # $ test/run_tests -P "load_contrib('dicom')" -t test/contrib/dicom.uts
 
@@ -25,7 +24,7 @@ assert DICOMPresentationContextRQ is not None
 assert DICOMUserInformation is not None
 assert DICOMMaximumLength is not None
 
-= Verify DIMSE packet classes are exported
+= Verify DIMSE-C packet classes are exported
 assert C_ECHO_RQ is not None
 assert C_ECHO_RSP is not None
 assert C_STORE_RQ is not None
@@ -36,6 +35,21 @@ assert C_MOVE_RQ is not None
 assert C_MOVE_RSP is not None
 assert C_GET_RQ is not None
 assert C_GET_RSP is not None
+assert C_CANCEL_RQ is not None
+
+= Verify DIMSE-N packet classes are exported
+assert N_EVENT_REPORT_RQ is not None
+assert N_EVENT_REPORT_RSP is not None
+assert N_GET_RQ is not None
+assert N_GET_RSP is not None
+assert N_SET_RQ is not None
+assert N_SET_RSP is not None
+assert N_ACTION_RQ is not None
+assert N_ACTION_RSP is not None
+assert N_CREATE_RQ is not None
+assert N_CREATE_RSP is not None
+assert N_DELETE_RQ is not None
+assert N_DELETE_RSP is not None
 
 = Verify constants are exported
 assert DICOM_PORT == 104
@@ -50,6 +64,25 @@ assert PATIENT_ROOT_QR_GET_SOP_CLASS_UID == "1.2.840.10008.5.1.4.1.2.1.3"
 assert STUDY_ROOT_QR_FIND_SOP_CLASS_UID == "1.2.840.10008.5.1.4.1.2.2.1"
 assert STUDY_ROOT_QR_MOVE_SOP_CLASS_UID == "1.2.840.10008.5.1.4.1.2.2.2"
 assert STUDY_ROOT_QR_GET_SOP_CLASS_UID == "1.2.840.10008.5.1.4.1.2.2.3"
+
+= Verify Transfer Syntax UID constants are exported
+assert IMPLICIT_VR_LITTLE_ENDIAN_UID == "1.2.840.10008.1.2"
+assert EXPLICIT_VR_LITTLE_ENDIAN_UID == "1.2.840.10008.1.2.1"
+assert EXPLICIT_VR_BIG_ENDIAN_UID == "1.2.840.10008.1.2.2"
+assert JPEG_BASELINE_UID == "1.2.840.10008.1.2.4.50"
+assert JPEG_2000_LOSSLESS_UID == "1.2.840.10008.1.2.4.90"
+assert RLE_LOSSLESS_UID == "1.2.840.10008.1.2.5"
+assert HTJP2K_LOSSLESS_UID == "1.2.840.10008.1.2.4.201"
+assert DEFAULT_TRANSFER_SYNTAX_UID == IMPLICIT_VR_LITTLE_ENDIAN_UID
+
+= Verify DIMSE Status Code constants
+assert STATUS_SUCCESS == 0x0000
+assert STATUS_CANCEL == 0xFE00
+assert STATUS_PENDING == 0xFF00
+assert STATUS_PENDING_WARNINGS == 0xFF01
+assert STATUS_ERR_SOP_CLASS_NOT_SUPPORTED == 0x0122
+assert STATUS_ERR_PROCESSING_FAILURE == 0x0110
+assert STATUS_ERR_NOT_AUTHORIZED == 0x0124
 
 ############
 ############
@@ -323,7 +356,7 @@ for is_cmd in [0, 1]:
 
 ############
 ############
-+ DIMSE packet tests
++ DIMSE-C packet tests
 
 = C_ECHO_RQ creation with defaults
 pkt = C_ECHO_RQ()
@@ -343,6 +376,13 @@ raw = bytes(pkt)
 assert struct.pack("<H", 0x8030) in raw
 assert b'\x00\x09' in raw
 
+= C_ECHO_RSP answers C_ECHO_RQ with matching message_id
+rq = C_ECHO_RQ(message_id=42)
+rsp = C_ECHO_RSP(message_id_responded=42)
+assert rsp.answers(rq) == True
+rsp_bad = C_ECHO_RSP(message_id_responded=99)
+assert rsp_bad.answers(rq) == False
+
 = C_STORE_RQ creation
 pkt = C_STORE_RQ(
     affected_sop_class_uid=CT_IMAGE_STORAGE_SOP_CLASS_UID,
@@ -353,6 +393,12 @@ raw = bytes(pkt)
 assert b'1.2.840.10008.5.1.4.1.1.2' in raw
 assert b'1.2.3.4.5.6.7.8.9' in raw
 assert struct.pack("<H", 0x0001) in raw
+
+= C_STORE_RSP answers C_STORE_RQ
+rq = C_STORE_RQ(message_id=77)
+rsp = C_STORE_RSP(message_id_responded=77)
+assert rsp.answers(rq) == True
+assert rsp.answers(C_ECHO_RQ(message_id=77)) == 0
 
 = C_FIND_RQ creation
 pkt = C_FIND_RQ(message_id=55)
@@ -370,6 +416,18 @@ pkt = C_MOVE_RQ(message_id=100, move_destination=b"DEST_AE")
 raw = bytes(pkt)
 assert struct.pack("<H", 0x0021) in raw
 assert b'DEST_AE' in raw
+
+= C_MOVE_RQ tag ordering - move_destination (0000,0600) before priority (0000,0700)
+~ tag_ordering
+pkt = C_MOVE_RQ(message_id=1, move_destination=b"DEST")
+raw = bytes(pkt)
+# Find tag (0000,0600) and (0000,0700) positions in wire bytes
+# Skip the 12-byte group length element prepended by post_build
+pos_0600 = raw.find(b'\x00\x00\x00\x06')
+pos_0700 = raw.find(b'\x00\x00\x00\x07')
+assert pos_0600 != -1, "move_destination tag (0000,0600) not found"
+assert pos_0700 != -1, "priority tag (0000,0700) not found"
+assert pos_0600 < pos_0700, "move_destination must precede priority per PS3.7 Section 6.3.1"
 
 = C_MOVE_RSP creation with sub-operation counters
 pkt = C_MOVE_RSP(
@@ -401,6 +459,12 @@ pkt = C_GET_RSP(
 raw = bytes(pkt)
 assert struct.pack("<H", 0x8010) in raw
 
+= C_CANCEL_RQ creation
+pkt = C_CANCEL_RQ(message_id_being_responded_to=55)
+raw = bytes(pkt)
+assert struct.pack("<H", 0x0FFF) in raw
+assert struct.pack("<H", 55) in raw
+
 = DIMSE command in P-DATA-TF - build verification
 dimse = C_ECHO_RQ(message_id=42)
 pdv = PresentationDataValueItem(context_id=1, data=bytes(dimse), is_command=1, is_last=1)
@@ -408,6 +472,158 @@ pdata = DICOM() / P_DATA_TF(pdv_items=[pdv])
 raw = bytes(pdata)
 assert raw[0] == 0x04
 assert b'1.2.840.10008.1.1' in raw
+
+############
+############
++ C_STORE_RQ Move Originator conditional fields
+
+= C_STORE_RQ without Move Originator fields
+pkt = C_STORE_RQ(message_id=1)
+raw = bytes(pkt)
+# Tag (0000,1030) should not appear
+assert raw.find(b'\x00\x00\x30\x10') == -1
+
+= C_STORE_RQ with Move Originator fields
+pkt = C_STORE_RQ(
+    message_id=1,
+    move_originator_ae_title=b"MOVESCU",
+    move_originator_message_id=42,
+)
+raw = bytes(pkt)
+assert b'MOVESCU' in raw
+assert struct.pack("<H", 42) in raw
+
+############
+############
++ DIMSE-N packet tests
+
+= N_EVENT_REPORT_RQ creation
+pkt = N_EVENT_REPORT_RQ(
+    affected_sop_class_uid="1.2.3",
+    message_id=10,
+    affected_sop_instance_uid="1.2.3.4",
+    event_type_id=1
+)
+raw = bytes(pkt)
+assert struct.pack("<H", 0x0100) in raw
+assert b'1.2.3' in raw
+
+= N_EVENT_REPORT_RSP answers N_EVENT_REPORT_RQ
+rq = N_EVENT_REPORT_RQ(message_id=10)
+rsp = N_EVENT_REPORT_RSP(message_id_responded=10)
+assert rsp.answers(rq) == True
+assert rsp.answers(C_ECHO_RQ(message_id=10)) == 0
+
+= N_GET_RQ creation with empty attribute list
+pkt = N_GET_RQ(
+    requested_sop_class_uid="1.2.3",
+    message_id=20,
+    requested_sop_instance_uid="1.2.3.4",
+    attribute_identifier_list=[]
+)
+raw = bytes(pkt)
+assert struct.pack("<H", 0x0110) in raw
+
+= N_GET_RQ with attribute identifier list
+pkt = N_GET_RQ(
+    requested_sop_class_uid="1.2.3",
+    message_id=20,
+    requested_sop_instance_uid="1.2.3.4",
+    attribute_identifier_list=[(0x0010, 0x0010), (0x0010, 0x0020)]
+)
+raw = bytes(pkt)
+# Verify the tag tuples are encoded as little-endian HH pairs
+assert struct.pack("<HH", 0x0010, 0x0010) in raw
+assert struct.pack("<HH", 0x0010, 0x0020) in raw
+
+= N_GET_RSP answers N_GET_RQ
+rq = N_GET_RQ(message_id=20)
+rsp = N_GET_RSP(message_id_responded=20)
+assert rsp.answers(rq) == True
+rsp_bad = N_GET_RSP(message_id_responded=99)
+assert rsp_bad.answers(rq) == False
+
+= N_SET_RQ creation
+pkt = N_SET_RQ(requested_sop_class_uid="1.2.3", message_id=30)
+raw = bytes(pkt)
+assert struct.pack("<H", 0x0120) in raw
+
+= N_SET_RSP answers N_SET_RQ
+rq = N_SET_RQ(message_id=30)
+rsp = N_SET_RSP(message_id_responded=30)
+assert rsp.answers(rq) == True
+
+= N_ACTION_RQ creation with action_type_id
+pkt = N_ACTION_RQ(
+    requested_sop_class_uid="1.2.3",
+    message_id=40,
+    action_type_id=5
+)
+raw = bytes(pkt)
+assert struct.pack("<H", 0x0130) in raw
+
+= N_ACTION_RSP answers N_ACTION_RQ
+rq = N_ACTION_RQ(message_id=40)
+rsp = N_ACTION_RSP(message_id_responded=40)
+assert rsp.answers(rq) == True
+
+= N_CREATE_RQ creation
+pkt = N_CREATE_RQ(affected_sop_class_uid="1.2.3", message_id=50)
+raw = bytes(pkt)
+assert struct.pack("<H", 0x0140) in raw
+
+= N_CREATE_RSP answers N_CREATE_RQ
+rq = N_CREATE_RQ(message_id=50)
+rsp = N_CREATE_RSP(message_id_responded=50)
+assert rsp.answers(rq) == True
+
+= N_DELETE_RQ creation
+pkt = N_DELETE_RQ(requested_sop_class_uid="1.2.3", message_id=60)
+raw = bytes(pkt)
+assert struct.pack("<H", 0x0150) in raw
+
+= N_DELETE_RSP answers N_DELETE_RQ
+rq = N_DELETE_RQ(message_id=60)
+rsp = N_DELETE_RSP(message_id_responded=60)
+assert rsp.answers(rq) == True
+
+= DIMSE-N RSP does not answer wrong RQ type
+rq = N_DELETE_RQ(message_id=60)
+rsp = N_CREATE_RSP(message_id_responded=60)
+assert rsp.answers(rq) == 0
+
+############
+############
++ DICOMATField tests
+
+= DICOMATField encode empty list
+pkt = N_GET_RQ(
+    requested_sop_class_uid="1.2.3",
+    message_id=1,
+    attribute_identifier_list=[]
+)
+raw = bytes(pkt)
+# Element (0000,1005) should be present with length 0
+assert b'\x00\x00\x05\x10\x00\x00\x00\x00' in raw
+
+= DICOMATField encode single tag tuple
+pkt = N_GET_RQ(
+    requested_sop_class_uid="1.2.3",
+    message_id=1,
+    attribute_identifier_list=[(0x0008, 0x0060)]
+)
+raw = bytes(pkt)
+assert struct.pack("<HH", 0x0008, 0x0060) in raw
+
+= DICOMATField encode integer tag
+pkt = N_GET_RQ(
+    requested_sop_class_uid="1.2.3",
+    message_id=1,
+    attribute_identifier_list=[0x00100010]
+)
+raw = bytes(pkt)
+# Integer 0x00100010 should be split into group=0x0010, elem=0x0010
+assert struct.pack("<HH", 0x0010, 0x0010) in raw
 
 ############
 ############
@@ -559,6 +775,46 @@ assert remaining == b'EXTRA'
 from scapy.layers.inet import TCP
 pkt = TCP(dport=104) / b'\x01\x00\x00\x00\x00\x04'
 assert DICOM in pkt or pkt.payload
+
+############
+############
++ DICOMUIDField robustness
+
+= DICOMUIDField.i2repr handles malformed bytes without crash
+fld = DICOMUIDField("test", b"", 0x0000, 0x0002)
+result = fld.i2repr(None, b'\xff\xfe\xfd')
+assert isinstance(result, str)
+
+############
+############
++ DICOMMaximumLength mysummary
+
+= DICOMMaximumLength mysummary shows unlimited for zero
+pkt = DICOMMaximumLength(max_pdu_length=0)
+assert "unlimited" in pkt.mysummary().lower()
+
+= DICOMMaximumLength mysummary shows value for non-zero
+pkt = DICOMMaximumLength(max_pdu_length=32768)
+assert "32768" in pkt.mysummary()
+
+############
+############
++ parse_dimse_status tests
+
+= parse_dimse_status extracts status from C_ECHO_RSP bytes
+rsp = C_ECHO_RSP(message_id_responded=1, status=0x0000)
+raw = bytes(rsp)
+status = parse_dimse_status(raw)
+assert status == 0x0000
+
+= parse_dimse_status extracts non-zero status
+rsp = C_ECHO_RSP(message_id_responded=1, status=0x0122)
+raw = bytes(rsp)
+status = parse_dimse_status(raw)
+assert status == 0x0122
+
+= parse_dimse_status returns None for truncated input
+assert parse_dimse_status(b'\x00' * 4) is None
 
 ############
 ############
