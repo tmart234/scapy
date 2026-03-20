@@ -8,17 +8,9 @@
 
 """
 DICOM (Digital Imaging and Communications in Medicine) Protocol
-
-This module implements:
-- DICOM Upper Layer Protocol (PS3.8 - Network Communication Support)
-- DIMSE Message Service Element (PS3.7 - Message Exchange)
-- Association negotiation sub-items (PS3.7 Annex D.3.3)
-- Transfer Syntax and encoding constants (PS3.5 - Data Structures and Encoding)
-
-References:
-- PS3.5: https://dicom.nema.org/medical/dicom/current/output/html/part05.html
-- PS3.7: https://dicom.nema.org/medical/dicom/current/output/html/part07.html
-- PS3.8: https://dicom.nema.org/medical/dicom/current/output/html/part08.html
+ 
+Upper Layer PDUs (PS3.8), DIMSE-C/N commands (PS3.7), association
+negotiation sub-items (PS3.7 D.3.3), and Transfer Syntax constants (PS3.5).
 
 The DICOM protocol stack::
 
@@ -31,12 +23,14 @@ The DICOM protocol stack::
     +---------------------------+
     |          TCP              |
     +---------------------------+
+DIMSE Command Sets are always Implicit VR Little Endian (PS3.7 §9.3);
+the negotiated Transfer Syntax applies only to Data Sets in P-DATA-TF PDVs.
+ 
+References:
+    https://dicom.nema.org/medical/dicom/current/output/html/part05.html
+    https://dicom.nema.org/medical/dicom/current/output/html/part07.html
+    https://dicom.nema.org/medical/dicom/current/output/html/part08.html    
 
-Note on PS3.5 encoding:
-    DIMSE Command Sets (this module) always use Implicit VR Little Endian
-    encoding per PS3.7 Section 9.3, regardless of the negotiated Transfer
-    Syntax for Data Sets. The Transfer Syntax UIDs defined here are for
-    negotiation and identification purposes.
 """
 
 import logging
