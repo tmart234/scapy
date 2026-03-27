@@ -109,7 +109,7 @@ __all__ = [
     # DIMSE Field Classes
     "DICOMAETitleField", "DICOMElementField",
     "DICOMUIDField", "DICOMUIDFieldRaw",
-    "DICOMUSField", "DICOMULField",
+    "DICOMUSField", "DICOMULField", "DICOMStatusField",
     "DICOMAEDIMSEField", "DICOMATField",
     # DIMSE Base Class
     "DIMSEPacket",
@@ -123,10 +123,11 @@ __all__ = [
     "N_ACTION_RQ", "N_ACTION_RSP", "N_CREATE_RQ", "N_CREATE_RSP",
     "N_DELETE_RQ", "N_DELETE_RSP",
     # Utilities
-    "DICOMSocket", "parse_dimse_status",
+    "DICOMSocket", "parse_dimse_status", "dimse_status_repr",
     "_uid_to_bytes", "_uid_to_bytes_raw",
     "build_presentation_context_rq", "build_user_information",
     # DIMSE Status Codes (PS3.7 Annex C)
+    "DIMSE_STATUS_CODES",
     "STATUS_SUCCESS", "STATUS_CANCEL",
     "STATUS_PENDING", "STATUS_PENDING_WARNINGS",
     "STATUS_WARNING_ATTRIBUTE_LIST", "STATUS_WARNING_ATTR_OUT_OF_RANGE",
@@ -142,6 +143,10 @@ __all__ = [
     "STATUS_ERR_NO_SUCH_SOP_CLASS", "STATUS_ERR_PROCESSING_FAILURE",
     "STATUS_ERR_RESOURCE_LIMITATION", "STATUS_ERR_UNRECOGNIZED_OPERATION",
     "STATUS_ERR_NO_SUCH_ACTION_TYPE", "STATUS_ERR_NOT_AUTHORIZED",
+    "STATUS_ERR_REFUSED_OUT_OF_RESOURCES",
+    "STATUS_ERR_REFUSED_OUT_OF_RESOURCES_MOVE",
+    "STATUS_ERR_REFUSED_MOVE_DESTINATION_UNKNOWN",
+    "STATUS_ERR_REFUSED_SOP_CLASS_NOT_SUPPORTED",
 ]
 
 log = logging.getLogger("scapy.contrib.dicom")
@@ -278,6 +283,60 @@ STATUS_ERR_RESOURCE_LIMITATION = 0x0213
 STATUS_ERR_UNRECOGNIZED_OPERATION = 0x0211
 STATUS_ERR_NO_SUCH_ACTION_TYPE = 0x0123
 STATUS_ERR_NOT_AUTHORIZED = 0x0124
+STATUS_ERR_REFUSED_OUT_OF_RESOURCES = 0xA700
+STATUS_ERR_REFUSED_OUT_OF_RESOURCES_MOVE = 0xA701
+STATUS_ERR_REFUSED_MOVE_DESTINATION_UNKNOWN = 0xA801
+STATUS_ERR_REFUSED_SOP_CLASS_NOT_SUPPORTED = 0xA900
+
+# Combined lookup dict for display purposes.
+DIMSE_STATUS_CODES = {
+    0x0000: "Success",
+    0x0001: "Warning: Requested optional attributes not supported",
+    0x0107: "Warning: Attribute list error",
+    0x0116: "Warning: Attribute value out of range",
+    0x0110: "Processing failure",
+    0x0111: "Duplicate SOP instance",
+    0x0112: "No such SOP instance",
+    0x0113: "No such event type",
+    0x0114: "No such argument",
+    0x0115: "Invalid argument value",
+    0x0117: "Invalid SOP instance",
+    0x0118: "No such SOP class",
+    0x0119: "Class-instance conflict",
+    0x0120: "Missing attribute",
+    0x0121: "Missing attribute value",
+    0x0122: "SOP class not supported",
+    0x0123: "No such action type",
+    0x0124: "Not authorized",
+    0x0210: "Duplicate invocation",
+    0x0211: "Unrecognized operation",
+    0x0212: "Mistyped argument",
+    0x0213: "Resource limitation",
+    0xA700: "Refused: Out of resources",
+    0xA701: "Refused: Out of resources — unable to calculate number of matches",
+    0xA801: "Refused: Move destination unknown",
+    0xA900: "Refused: SOP class not supported",
+    0xFE00: "Cancel",
+    0xFF00: "Pending",
+    0xFF01: "Pending: Warning — optional keys not supported",
+}
+
+
+def dimse_status_repr(code: int) -> str:
+    """Return a human-readable string for a DIMSE status *code*.
+
+    Falls back to range-based descriptions per PS3.7 Annex C when the
+    exact code is not in DIMSE_STATUS_CODES.
+    """
+    if code in DIMSE_STATUS_CODES:
+        return "%s (0x%04X)" % (DIMSE_STATUS_CODES[code], code)
+    if 0xA000 <= code <= 0xAFFF:
+        return "Refused (service-class-specific 0x%04X)" % code
+    if 0xB000 <= code <= 0xBFFF:
+        return "Warning (service-class-specific 0x%04X)" % code
+    if 0xC000 <= code <= 0xCFFF:
+        return "Unable to process (service-class-specific 0x%04X)" % code
+    return "0x%04X" % code
 
 
 def _uid_to_bytes(uid: Union[str, bytes]) -> bytes:
@@ -434,6 +493,13 @@ class DICOMULField(DICOMElementField):
         return RandInt()
 
 
+class DICOMStatusField(DICOMUSField):
+    """DIMSE Status field (0000,0900) with range-aware display."""
+
+    def i2repr(self, pkt: Optional[Packet], val: Any) -> str:
+        return dimse_status_repr(val)
+
+
 class DICOMAEDIMSEField(DICOMElementField):
     """DICOM AE element field for DIMSE - 16 bytes, space-padded."""
 
@@ -488,7 +554,7 @@ class DICOMATField(DICOMElementField):
 
 
 class DICOMGenericItem(Packet):
-    """Generic fallback for unrecognized DICOM variable items."""
+    """Generic fallback — unknown sub-item types are skipped per PS3.8 D.2."""
     name = "DICOM Generic Item"
     fields_desc = [
         StrLenField(
@@ -500,6 +566,12 @@ class DICOMGenericItem(Packet):
             )
         ),
     ]
+
+    def post_dissect(self, s: bytes) -> bytes:
+        if self.underlayer and hasattr(self.underlayer, "item_type"):
+            log.info("Skipping unknown sub-item type 0x%02X (%d bytes)",
+                     self.underlayer.item_type, len(self.data))
+        return s
 
     def extract_padding(self, s: bytes) -> Tuple[bytes, bytes]:
         return b"", s
@@ -776,7 +848,10 @@ class DICOMSOPClassExtendedNegotiation(Packet):
 
 
 class DICOMSOPClassCommonExtendedNegotiation(Packet):
-    """For item type 0x57, byte 2 of the header is Sub-Item-version (not reserved)."""
+    """Item type 0x57 — byte 2 of the Variable Item header is Sub-Item-Version
+    (PS3.7 D.3.3.6), not the usual reserved byte.  Access it via the
+    ``sub_item_version`` property which reads from the underlayer.
+    """
     name = "DICOM SOP Class Common Extended Negotiation"
     fields_desc = [
         FieldLenField("sop_class_uid_length", None,
@@ -793,12 +868,19 @@ class DICOMSOPClassCommonExtendedNegotiation(Packet):
                     length_from=lambda pkt: pkt.related_sop_class_uid_length),
     ]
 
+    @property
+    def sub_item_version(self) -> int:
+        """Return the Sub-Item-Version from the DICOMVariableItem header."""
+        if self.underlayer and hasattr(self.underlayer, "reserved"):
+            return self.underlayer.reserved
+        return 0
+
     def extract_padding(self, s: bytes) -> Tuple[bytes, bytes]:
         return b"", s
 
     def mysummary(self) -> str:
         uid = self.sop_class_uid.decode("ascii").rstrip("\x00")
-        return "SOPClassCommonExtNeg %s" % uid
+        return "SOPClassCommonExtNeg v%d %s" % (self.sub_item_version, uid)
 
 
 class DICOMUserIdentity(Packet):
@@ -906,16 +988,8 @@ class DICOM(Packet):
 
 
 class PresentationDataValueItem(Packet):
-    """A single PDV inside a P-DATA-TF PDU (PS3.8 §9.3.5.1).
+    # PDV header is BE (PS3.8); DIMSE payload inside data is LE (PS3.7 §9.3).
 
-    Endianness boundary: the ``length``, ``context_id``, and control-flag
-    fields use Big Endian (network byte order, ``"!I"``/``ByteField``) as
-    required by the Upper Layer protocol (PS3.8).  The ``data`` payload
-    carries either a DIMSE Command Set (always Implicit VR **Little Endian**,
-    PS3.7 §9.3) or a Data Set (negotiated Transfer Syntax).  Scapy's DIMSE
-    field classes (``DICOMElementField``, ``DICOMUSField``, etc.) correctly
-    use ``"<"`` (LE) ``struct`` format for the inner encoding.
-    """
     name = "PresentationDataValueItem"
     fields_desc = [
         FieldLenField("length", None, length_of="data", fmt="!I",
@@ -1151,7 +1225,7 @@ class C_ECHO_RSP(DIMSEPacket):
         DICOMUSField("command_field", 0x8030, 0x0000, 0x0100),
         DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
         DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
-        DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMStatusField("status", 0x0000, 0x0000, 0x0900),
     ]
 
     def mysummary(self) -> str:
@@ -1204,7 +1278,7 @@ class C_STORE_RSP(DIMSEPacket):
         DICOMUSField("command_field", 0x8001, 0x0000, 0x0100),
         DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
         DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
-        DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMStatusField("status", 0x0000, 0x0000, 0x0900),
         DICOMUIDField("affected_sop_instance_uid",
                       "1.2.3.4.5.6.7.8.9", 0x0000, 0x1000),
     ]
@@ -1247,7 +1321,7 @@ class C_FIND_RSP(DIMSEPacket):
         DICOMUSField("command_field", 0x8020, 0x0000, 0x0100),
         DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
         DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
-        DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMStatusField("status", 0x0000, 0x0000, 0x0900),
     ]
 
     def mysummary(self) -> str:
@@ -1288,7 +1362,7 @@ class C_GET_RSP(DIMSEPacket):
         DICOMUSField("command_field", 0x8010, 0x0000, 0x0100),
         DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
         DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
-        DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMStatusField("status", 0x0000, 0x0000, 0x0900),
         DICOMUSField("num_remaining", 0, 0x0000, 0x1020),
         DICOMUSField("num_completed", 0, 0x0000, 0x1021),
         DICOMUSField("num_failed", 0, 0x0000, 0x1022),
@@ -1335,7 +1409,7 @@ class C_MOVE_RSP(DIMSEPacket):
         DICOMUSField("command_field", 0x8021, 0x0000, 0x0100),
         DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
         DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
-        DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMStatusField("status", 0x0000, 0x0000, 0x0900),
         DICOMUSField("num_remaining", 0, 0x0000, 0x1020),
         DICOMUSField("num_completed", 0, 0x0000, 0x1021),
         DICOMUSField("num_failed", 0, 0x0000, 0x1022),
@@ -1393,7 +1467,7 @@ class N_EVENT_REPORT_RSP(DIMSEPacket):
         DICOMUSField("command_field", 0x8100, 0x0000, 0x0100),
         DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
         DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
-        DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMStatusField("status", 0x0000, 0x0000, 0x0900),
         DICOMUIDField("affected_sop_instance_uid", "", 0x0000, 0x1000),
         DICOMUSField("event_type_id", 0, 0x0000, 0x1002),
     ]
@@ -1435,7 +1509,7 @@ class N_GET_RSP(DIMSEPacket):
         DICOMUSField("command_field", 0x8110, 0x0000, 0x0100),
         DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
         DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
-        DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMStatusField("status", 0x0000, 0x0000, 0x0900),
         DICOMUIDField("affected_sop_instance_uid", "", 0x0000, 0x1000),
     ]
 
@@ -1475,7 +1549,7 @@ class N_SET_RSP(DIMSEPacket):
         DICOMUSField("command_field", 0x8120, 0x0000, 0x0100),
         DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
         DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
-        DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMStatusField("status", 0x0000, 0x0000, 0x0900),
         DICOMUIDField("affected_sop_instance_uid", "", 0x0000, 0x1000),
     ]
 
@@ -1516,7 +1590,7 @@ class N_ACTION_RSP(DIMSEPacket):
         DICOMUSField("command_field", 0x8130, 0x0000, 0x0100),
         DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
         DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
-        DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMStatusField("status", 0x0000, 0x0000, 0x0900),
         DICOMUIDField("affected_sop_instance_uid", "", 0x0000, 0x1000),
         DICOMUSField("action_type_id", 0, 0x0000, 0x1008),
     ]
@@ -1557,7 +1631,7 @@ class N_CREATE_RSP(DIMSEPacket):
         DICOMUSField("command_field", 0x8140, 0x0000, 0x0100),
         DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
         DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
-        DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMStatusField("status", 0x0000, 0x0000, 0x0900),
         DICOMUIDField("affected_sop_instance_uid", "", 0x0000, 0x1000),
     ]
 
@@ -1597,7 +1671,7 @@ class N_DELETE_RSP(DIMSEPacket):
         DICOMUSField("command_field", 0x8150, 0x0000, 0x0100),
         DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
         DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
-        DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMStatusField("status", 0x0000, 0x0000, 0x0900),
         DICOMUIDField("affected_sop_instance_uid", "", 0x0000, 0x1000),
     ]
 
