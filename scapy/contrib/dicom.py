@@ -83,7 +83,19 @@ __all__ = [
     "JPEGXL_LOSSLESS_UID", "JPEGXL_RECOMPRESSION_UID", "JPEGXL_UID",
     "RLE_LOSSLESS_UID", "DEFLATED_IMAGE_FRAME_UID",
     "HTJP2K_LOSSLESS_UID", "HTJP2K_LOSSLESS_RPCL_UID", "HTJP2K_UID",
+    "JPIP_REFERENCED_UID", "JPIP_REFERENCED_DEFLATE_UID",
+    "JPIP_HTJ2K_REFERENCED_UID", "JPIP_HTJ2K_REFERENCED_DEFLATE_UID",
+    "MPEG2_MPML_FRAG_UID", "MPEG2_MPHL_FRAG_UID",
+    "MPEG4_AVC_H264_HP_LEVEL_4_1_FRAG_UID",
+    "MPEG4_AVC_H264_BD_COMPATIBLE_HP_LEVEL_4_1_FRAG_UID",
+    "MPEG4_AVC_H264_HP_LEVEL_4_2_2D_FRAG_UID",
+    "MPEG4_AVC_H264_HP_LEVEL_4_2_3D_FRAG_UID",
+    "MPEG4_AVC_H264_STEREO_HP_LEVEL_2_FRAG_UID",
+    "SMPTE_ST_2110_20_UNCOMPRESSED_PROGRESSIVE_UID",
+    "SMPTE_ST_2110_20_UNCOMPRESSED_INTERLACED_UID",
+    "SMPTE_ST_2110_30_PCM_AUDIO_UID",
     # SOP Class UIDs (PS3.4)
+    "SOP_CLASS_NAMES",
     "VERIFICATION_SOP_CLASS_UID", "CT_IMAGE_STORAGE_SOP_CLASS_UID",
     "PATIENT_ROOT_QR_FIND_SOP_CLASS_UID",
     "PATIENT_ROOT_QR_MOVE_SOP_CLASS_UID",
@@ -200,6 +212,24 @@ DEFLATED_IMAGE_FRAME_UID = "1.2.840.10008.1.2.5.1"
 HTJP2K_LOSSLESS_UID = "1.2.840.10008.1.2.4.201"
 HTJP2K_LOSSLESS_RPCL_UID = "1.2.840.10008.1.2.4.202"
 HTJP2K_UID = "1.2.840.10008.1.2.4.203"
+# -- JPIP Referenced (PS3.5 A.6) --
+JPIP_REFERENCED_UID = "1.2.840.10008.1.2.4.94"
+JPIP_REFERENCED_DEFLATE_UID = "1.2.840.10008.1.2.4.95"
+JPIP_HTJ2K_REFERENCED_UID = "1.2.840.10008.1.2.4.204"
+JPIP_HTJ2K_REFERENCED_DEFLATE_UID = "1.2.840.10008.1.2.4.205"
+# -- Fragmentable video variants --
+MPEG2_MPML_FRAG_UID = "1.2.840.10008.1.2.4.100.1"
+MPEG2_MPHL_FRAG_UID = "1.2.840.10008.1.2.4.101.1"
+MPEG4_AVC_H264_HP_LEVEL_4_1_FRAG_UID = "1.2.840.10008.1.2.4.102.1"
+MPEG4_AVC_H264_BD_COMPATIBLE_HP_LEVEL_4_1_FRAG_UID = \
+    "1.2.840.10008.1.2.4.103.1"
+MPEG4_AVC_H264_HP_LEVEL_4_2_2D_FRAG_UID = "1.2.840.10008.1.2.4.104.1"
+MPEG4_AVC_H264_HP_LEVEL_4_2_3D_FRAG_UID = "1.2.840.10008.1.2.4.105.1"
+MPEG4_AVC_H264_STEREO_HP_LEVEL_2_FRAG_UID = "1.2.840.10008.1.2.4.106.1"
+# -- SMPTE ST 2110 (PS3.5 A.7) --
+SMPTE_ST_2110_20_UNCOMPRESSED_PROGRESSIVE_UID = "1.2.840.10008.1.2.7.1"
+SMPTE_ST_2110_20_UNCOMPRESSED_INTERLACED_UID = "1.2.840.10008.1.2.7.2"
+SMPTE_ST_2110_30_PCM_AUDIO_UID = "1.2.840.10008.1.2.7.3"
 
 # SOP Class UIDs (PS3.4)
 VERIFICATION_SOP_CLASS_UID = "1.2.840.10008.1.1"
@@ -210,6 +240,65 @@ PATIENT_ROOT_QR_GET_SOP_CLASS_UID = "1.2.840.10008.5.1.4.1.2.1.3"
 STUDY_ROOT_QR_FIND_SOP_CLASS_UID = "1.2.840.10008.5.1.4.1.2.2.1"
 STUDY_ROOT_QR_MOVE_SOP_CLASS_UID = "1.2.840.10008.5.1.4.1.2.2.2"
 STUDY_ROOT_QR_GET_SOP_CLASS_UID = "1.2.840.10008.5.1.4.1.2.2.3"
+
+# Display-only lookup for commonly negotiated SOP Classes (PS3.4).
+SOP_CLASS_NAMES = {
+    "1.2.840.10008.1.1": "Verification",
+    # Storage — imaging
+    "1.2.840.10008.5.1.4.1.1.1": "CR Image Storage",
+    "1.2.840.10008.5.1.4.1.1.1.1": "Digital X-Ray Image Storage (Presentation)",
+    "1.2.840.10008.5.1.4.1.1.1.1.1": "Digital X-Ray Image Storage (Processing)",
+    "1.2.840.10008.5.1.4.1.1.2": "CT Image Storage",
+    "1.2.840.10008.5.1.4.1.1.2.1": "Enhanced CT Image Storage",
+    "1.2.840.10008.5.1.4.1.1.2.2": "Legacy Converted Enhanced CT Image Storage",
+    "1.2.840.10008.5.1.4.1.1.3.1": "Ultrasound Multi-frame Image Storage",
+    "1.2.840.10008.5.1.4.1.1.4": "MR Image Storage",
+    "1.2.840.10008.5.1.4.1.1.4.1": "Enhanced MR Image Storage",
+    "1.2.840.10008.5.1.4.1.1.4.4": "Legacy Converted Enhanced MR Image Storage",
+    "1.2.840.10008.5.1.4.1.1.6.1": "Ultrasound Image Storage",
+    "1.2.840.10008.5.1.4.1.1.6.2": "Enhanced US Volume Storage",
+    "1.2.840.10008.5.1.4.1.1.7": "Secondary Capture Image Storage",
+    "1.2.840.10008.5.1.4.1.1.7.1": "Multi-frame Single Bit SC Image Storage",
+    "1.2.840.10008.5.1.4.1.1.7.2": "Multi-frame Grayscale Byte SC Image Storage",
+    "1.2.840.10008.5.1.4.1.1.7.3": "Multi-frame Grayscale Word SC Image Storage",
+    "1.2.840.10008.5.1.4.1.1.7.4": "Multi-frame True Color SC Image Storage",
+    "1.2.840.10008.5.1.4.1.1.12.1": "X-Ray Angiographic Image Storage",
+    "1.2.840.10008.5.1.4.1.1.12.2": "X-Ray Radiofluoroscopic Image Storage",
+    "1.2.840.10008.5.1.4.1.1.20": "Nuclear Medicine Image Storage",
+    "1.2.840.10008.5.1.4.1.1.77.1.1": "VL Endoscopic Image Storage",
+    "1.2.840.10008.5.1.4.1.1.77.1.4": "VL Photographic Image Storage",
+    "1.2.840.10008.5.1.4.1.1.77.1.5.1": "Ophthalmic Photography 8 Bit Image Storage",
+    "1.2.840.10008.5.1.4.1.1.104.1": "Encapsulated PDF Storage",
+    "1.2.840.10008.5.1.4.1.1.128": "PET Image Storage",
+    "1.2.840.10008.5.1.4.1.1.128.1": "Enhanced PET Image Storage",
+    "1.2.840.10008.5.1.4.1.1.130": "Enhanced PET Image Storage",
+    "1.2.840.10008.5.1.4.1.1.481.1": "RT Image Storage",
+    "1.2.840.10008.5.1.4.1.1.481.2": "RT Dose Storage",
+    "1.2.840.10008.5.1.4.1.1.481.3": "RT Structure Set Storage",
+    "1.2.840.10008.5.1.4.1.1.481.5": "RT Plan Storage",
+    "1.2.840.10008.5.1.4.1.1.66.4": "Segmentation Storage",
+    # Query/Retrieve
+    "1.2.840.10008.5.1.4.1.2.1.1": "Patient Root QR Find",
+    "1.2.840.10008.5.1.4.1.2.1.2": "Patient Root QR Move",
+    "1.2.840.10008.5.1.4.1.2.1.3": "Patient Root QR Get",
+    "1.2.840.10008.5.1.4.1.2.2.1": "Study Root QR Find",
+    "1.2.840.10008.5.1.4.1.2.2.2": "Study Root QR Move",
+    "1.2.840.10008.5.1.4.1.2.2.3": "Study Root QR Get",
+    # Worklist
+    "1.2.840.10008.5.1.4.31": "Modality Worklist Find",
+    # MPPS
+    "1.2.840.10008.3.1.2.3.3": "Modality Performed Procedure Step",
+    # Storage Commitment
+    "1.2.840.10008.1.20.1": "Storage Commitment Push Model",
+    "1.2.840.10008.1.20.2": "Storage Commitment Pull Model",
+    # Presentation State
+    "1.2.840.10008.5.1.4.1.1.11.1": "Grayscale Softcopy Presentation State Storage",
+    "1.2.840.10008.5.1.4.1.1.11.2": "Color Softcopy Presentation State Storage",
+    # Structured Report
+    "1.2.840.10008.5.1.4.1.1.88.11": "Basic Text SR Storage",
+    "1.2.840.10008.5.1.4.1.1.88.22": "Enhanced SR Storage",
+    "1.2.840.10008.5.1.4.1.1.88.33": "Comprehensive SR Storage",
+}
 
 PDU_TYPES = {
     0x01: "A-ASSOCIATE-RQ", 0x02: "A-ASSOCIATE-AC",
@@ -400,6 +489,18 @@ class DICOMElementField(Field[bytes, bytes]):
         return s + hdr + val
 
     def getfield(self, pkt: Optional[Packet], s: bytes) -> Tuple[bytes, bytes]:
+        if len(s) < 8:
+            return s, b""
+        # Skip retired/unknown elements until we find ours (e.g. (0000,0001)).
+        while len(s) >= 8:
+            tag_g, tag_e, length = struct.unpack("<HHI", s[:8])
+            if tag_g == self.tag_group and tag_e == self.tag_elem:
+                break
+            if len(s) < 8 + length:
+                return s, b""
+            log.info("Skipping unexpected DICOM element (%04X,%04X)",
+                     tag_g, tag_e)
+            s = s[8 + length:]
         if len(s) < 8:
             return s, b""
         tag_g, tag_e, length = struct.unpack("<HHI", s[:8])
@@ -1040,6 +1141,7 @@ class A_ASSOCIATE_RQ(Packet):
 
 
 class A_ASSOCIATE_AC(Packet):
+    # Bytes 11-42 / 43-74 are reserved but echo the AE titles from A-ASSOCIATE-RQ.
     name = "A-ASSOCIATE-AC"
     fields_desc = [
         ShortField("protocol_version", 1),
