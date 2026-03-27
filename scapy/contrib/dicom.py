@@ -323,11 +323,7 @@ DIMSE_STATUS_CODES = {
 
 
 def dimse_status_repr(code: int) -> str:
-    """Return a human-readable string for a DIMSE status *code*.
-
-    Falls back to range-based descriptions per PS3.7 Annex C when the
-    exact code is not in DIMSE_STATUS_CODES.
-    """
+    """Return a human-readable string for a DIMSE status code (PS3.7 Annex C)."""
     if code in DIMSE_STATUS_CODES:
         return "%s (0x%04X)" % (DIMSE_STATUS_CODES[code], code)
     if 0xA000 <= code <= 0xAFFF:
@@ -848,10 +844,7 @@ class DICOMSOPClassExtendedNegotiation(Packet):
 
 
 class DICOMSOPClassCommonExtendedNegotiation(Packet):
-    """Item type 0x57 — byte 2 of the Variable Item header is Sub-Item-Version
-    (PS3.7 D.3.3.6), not the usual reserved byte.  Access it via the
-    ``sub_item_version`` property which reads from the underlayer.
-    """
+    """Item 0x57 — header byte 2 is Sub-Item-Version (PS3.7 D.3.3.6), not reserved."""
     name = "DICOM SOP Class Common Extended Negotiation"
     fields_desc = [
         FieldLenField("sop_class_uid_length", None,
