@@ -65,13 +65,37 @@ __all__ = [
     "DICOM_PORT", "DICOM_PORT_ALT", "APP_CONTEXT_UID",
     # Transfer Syntax UIDs (PS3.5 Annex A)
     "DEFAULT_TRANSFER_SYNTAX_UID", "IMPLICIT_VR_LITTLE_ENDIAN_UID",
-    "EXPLICIT_VR_LITTLE_ENDIAN_UID", "EXPLICIT_VR_BIG_ENDIAN_UID",
+    "EXPLICIT_VR_LITTLE_ENDIAN_UID",
+    "ENCAPSULATED_UNCOMPRESSED_EXPLICIT_VR_LITTLE_ENDIAN_UID",
     "DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN_UID",
-    "JPEG_BASELINE_UID", "JPEG_LOSSLESS_UID",
+    "EXPLICIT_VR_BIG_ENDIAN_UID",
+    "JPEG_BASELINE_UID", "JPEG_EXTENDED_UID", "JPEG_LOSSLESS_UID",
     "JPEG_LS_LOSSLESS_UID", "JPEG_LS_LOSSY_UID",
-    "JPEG_2000_LOSSLESS_UID", "JPEG_2000_UID", "RLE_LOSSLESS_UID",
+    "JPEG_2000_LOSSLESS_UID", "JPEG_2000_UID",
+    "JPEG_2000_PART2_MC_LOSSLESS_UID", "JPEG_2000_PART2_MC_UID",
+    "MPEG2_MPML_UID", "MPEG2_MPHL_UID",
+    "MPEG4_AVC_H264_HP_LEVEL_4_1_UID",
+    "MPEG4_AVC_H264_BD_COMPATIBLE_HP_LEVEL_4_1_UID",
+    "MPEG4_AVC_H264_HP_LEVEL_4_2_2D_UID",
+    "MPEG4_AVC_H264_HP_LEVEL_4_2_3D_UID",
+    "MPEG4_AVC_H264_STEREO_HP_LEVEL_2_UID",
+    "HEVC_H265_MP_LEVEL_5_1_UID", "HEVC_H265_10P_LEVEL_5_1_UID",
+    "JPEGXL_LOSSLESS_UID", "JPEGXL_RECOMPRESSION_UID", "JPEGXL_UID",
+    "RLE_LOSSLESS_UID",
     "HTJP2K_LOSSLESS_UID", "HTJP2K_LOSSLESS_RPCL_UID", "HTJP2K_UID",
+    "JPIP_REFERENCED_UID", "JPIP_REFERENCED_DEFLATE_UID",
+    "JPIP_HTJ2K_REFERENCED_UID", "JPIP_HTJ2K_REFERENCED_DEFLATE_UID",
+    "MPEG2_MPML_FRAG_UID", "MPEG2_MPHL_FRAG_UID",
+    "MPEG4_AVC_H264_HP_LEVEL_4_1_FRAG_UID",
+    "MPEG4_AVC_H264_BD_COMPATIBLE_HP_LEVEL_4_1_FRAG_UID",
+    "MPEG4_AVC_H264_HP_LEVEL_4_2_2D_FRAG_UID",
+    "MPEG4_AVC_H264_HP_LEVEL_4_2_3D_FRAG_UID",
+    "MPEG4_AVC_H264_STEREO_HP_LEVEL_2_FRAG_UID",
+    "SMPTE_ST_2110_20_UNCOMPRESSED_PROGRESSIVE_UID",
+    "SMPTE_ST_2110_20_UNCOMPRESSED_INTERLACED_UID",
+    "SMPTE_ST_2110_30_PCM_AUDIO_UID",
     # SOP Class UIDs (PS3.4)
+    "SOP_CLASS_NAMES",
     "VERIFICATION_SOP_CLASS_UID", "CT_IMAGE_STORAGE_SOP_CLASS_UID",
     "PATIENT_ROOT_QR_FIND_SOP_CLASS_UID",
     "PATIENT_ROOT_QR_MOVE_SOP_CLASS_UID",
@@ -97,7 +121,7 @@ __all__ = [
     # DIMSE Field Classes
     "DICOMAETitleField", "DICOMElementField",
     "DICOMUIDField", "DICOMUIDFieldRaw",
-    "DICOMUSField", "DICOMULField",
+    "DICOMUSField", "DICOMULField", "DICOMStatusField",
     "DICOMAEDIMSEField", "DICOMATField",
     # DIMSE Base Class
     "DIMSEPacket",
@@ -111,10 +135,11 @@ __all__ = [
     "N_ACTION_RQ", "N_ACTION_RSP", "N_CREATE_RQ", "N_CREATE_RSP",
     "N_DELETE_RQ", "N_DELETE_RSP",
     # Utilities
-    "DICOMSocket", "parse_dimse_status",
+    "DICOMSocket", "parse_dimse_status", "dimse_status_repr",
     "_uid_to_bytes", "_uid_to_bytes_raw",
     "build_presentation_context_rq", "build_user_information",
     # DIMSE Status Codes (PS3.7 Annex C)
+    "DIMSE_STATUS_CODES",
     "STATUS_SUCCESS", "STATUS_CANCEL",
     "STATUS_PENDING", "STATUS_PENDING_WARNINGS",
     "STATUS_WARNING_ATTRIBUTE_LIST", "STATUS_WARNING_ATTR_OUT_OF_RANGE",
@@ -130,6 +155,10 @@ __all__ = [
     "STATUS_ERR_NO_SUCH_SOP_CLASS", "STATUS_ERR_PROCESSING_FAILURE",
     "STATUS_ERR_RESOURCE_LIMITATION", "STATUS_ERR_UNRECOGNIZED_OPERATION",
     "STATUS_ERR_NO_SUCH_ACTION_TYPE", "STATUS_ERR_NOT_AUTHORIZED",
+    "STATUS_ERR_REFUSED_OUT_OF_RESOURCES",
+    "STATUS_ERR_REFUSED_OUT_OF_RESOURCES_MOVE",
+    "STATUS_ERR_REFUSED_MOVE_DESTINATION_UNKNOWN",
+    "STATUS_ERR_REFUSED_SOP_CLASS_NOT_SUPPORTED",
 ]
 
 log = logging.getLogger("scapy.contrib.dicom")
@@ -139,21 +168,66 @@ DICOM_PORT_ALT = 11112
 APP_CONTEXT_UID = "1.2.840.10008.3.1.1.1"
 
 # Transfer Syntax UIDs (PS3.5 Annex A)
+# -- Core --
 DEFAULT_TRANSFER_SYNTAX_UID = "1.2.840.10008.1.2"
 IMPLICIT_VR_LITTLE_ENDIAN_UID = "1.2.840.10008.1.2"
 EXPLICIT_VR_LITTLE_ENDIAN_UID = "1.2.840.10008.1.2.1"
-EXPLICIT_VR_BIG_ENDIAN_UID = "1.2.840.10008.1.2.2"
+ENCAPSULATED_UNCOMPRESSED_EXPLICIT_VR_LITTLE_ENDIAN_UID = \
+    "1.2.840.10008.1.2.1.98"
 DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN_UID = "1.2.840.10008.1.2.1.99"
+EXPLICIT_VR_BIG_ENDIAN_UID = "1.2.840.10008.1.2.2"  # retired
+# -- JPEG --
 JPEG_BASELINE_UID = "1.2.840.10008.1.2.4.50"
+JPEG_EXTENDED_UID = "1.2.840.10008.1.2.4.51"
 JPEG_LOSSLESS_UID = "1.2.840.10008.1.2.4.70"
+# -- JPEG-LS --
 JPEG_LS_LOSSLESS_UID = "1.2.840.10008.1.2.4.80"
 JPEG_LS_LOSSY_UID = "1.2.840.10008.1.2.4.81"
+# -- JPEG 2000 --
 JPEG_2000_LOSSLESS_UID = "1.2.840.10008.1.2.4.90"
 JPEG_2000_UID = "1.2.840.10008.1.2.4.91"
+JPEG_2000_PART2_MC_LOSSLESS_UID = "1.2.840.10008.1.2.4.92"
+JPEG_2000_PART2_MC_UID = "1.2.840.10008.1.2.4.93"
+# -- MPEG-2 (PS3.5 A.4.4) --
+MPEG2_MPML_UID = "1.2.840.10008.1.2.4.100"
+MPEG2_MPHL_UID = "1.2.840.10008.1.2.4.101"
+# -- MPEG-4 / H.264 (PS3.5 A.4.5–A.4.9) --
+MPEG4_AVC_H264_HP_LEVEL_4_1_UID = "1.2.840.10008.1.2.4.102"
+MPEG4_AVC_H264_BD_COMPATIBLE_HP_LEVEL_4_1_UID = "1.2.840.10008.1.2.4.103"
+MPEG4_AVC_H264_HP_LEVEL_4_2_2D_UID = "1.2.840.10008.1.2.4.104"
+MPEG4_AVC_H264_HP_LEVEL_4_2_3D_UID = "1.2.840.10008.1.2.4.105"
+MPEG4_AVC_H264_STEREO_HP_LEVEL_2_UID = "1.2.840.10008.1.2.4.106"
+# -- HEVC / H.265 (PS3.5 A.4.10–A.4.11) --
+HEVC_H265_MP_LEVEL_5_1_UID = "1.2.840.10008.1.2.4.107"
+HEVC_H265_10P_LEVEL_5_1_UID = "1.2.840.10008.1.2.4.108"
+# -- JPEG XL (PS3.5 A.4.12–A.4.14) --
+JPEGXL_LOSSLESS_UID = "1.2.840.10008.1.2.4.110"
+JPEGXL_RECOMPRESSION_UID = "1.2.840.10008.1.2.4.111"
+JPEGXL_UID = "1.2.840.10008.1.2.4.112"
+# -- RLE --
 RLE_LOSSLESS_UID = "1.2.840.10008.1.2.5"
+# -- HTJ2K (PS3.5 A.4.15–A.4.17) --
 HTJP2K_LOSSLESS_UID = "1.2.840.10008.1.2.4.201"
 HTJP2K_LOSSLESS_RPCL_UID = "1.2.840.10008.1.2.4.202"
 HTJP2K_UID = "1.2.840.10008.1.2.4.203"
+# -- JPIP Referenced (PS3.5 A.6) --
+JPIP_REFERENCED_UID = "1.2.840.10008.1.2.4.94"
+JPIP_REFERENCED_DEFLATE_UID = "1.2.840.10008.1.2.4.95"
+JPIP_HTJ2K_REFERENCED_UID = "1.2.840.10008.1.2.4.204"
+JPIP_HTJ2K_REFERENCED_DEFLATE_UID = "1.2.840.10008.1.2.4.205"
+# -- Fragmentable video variants --
+MPEG2_MPML_FRAG_UID = "1.2.840.10008.1.2.4.100.1"
+MPEG2_MPHL_FRAG_UID = "1.2.840.10008.1.2.4.101.1"
+MPEG4_AVC_H264_HP_LEVEL_4_1_FRAG_UID = "1.2.840.10008.1.2.4.102.1"
+MPEG4_AVC_H264_BD_COMPATIBLE_HP_LEVEL_4_1_FRAG_UID = \
+    "1.2.840.10008.1.2.4.103.1"
+MPEG4_AVC_H264_HP_LEVEL_4_2_2D_FRAG_UID = "1.2.840.10008.1.2.4.104.1"
+MPEG4_AVC_H264_HP_LEVEL_4_2_3D_FRAG_UID = "1.2.840.10008.1.2.4.105.1"
+MPEG4_AVC_H264_STEREO_HP_LEVEL_2_FRAG_UID = "1.2.840.10008.1.2.4.106.1"
+# -- SMPTE ST 2110 (PS3.5 A.7) --
+SMPTE_ST_2110_20_UNCOMPRESSED_PROGRESSIVE_UID = "1.2.840.10008.1.2.7.1"
+SMPTE_ST_2110_20_UNCOMPRESSED_INTERLACED_UID = "1.2.840.10008.1.2.7.2"
+SMPTE_ST_2110_30_PCM_AUDIO_UID = "1.2.840.10008.1.2.7.3"
 
 # SOP Class UIDs (PS3.4)
 VERIFICATION_SOP_CLASS_UID = "1.2.840.10008.1.1"
@@ -164,6 +238,63 @@ PATIENT_ROOT_QR_GET_SOP_CLASS_UID = "1.2.840.10008.5.1.4.1.2.1.3"
 STUDY_ROOT_QR_FIND_SOP_CLASS_UID = "1.2.840.10008.5.1.4.1.2.2.1"
 STUDY_ROOT_QR_MOVE_SOP_CLASS_UID = "1.2.840.10008.5.1.4.1.2.2.2"
 STUDY_ROOT_QR_GET_SOP_CLASS_UID = "1.2.840.10008.5.1.4.1.2.2.3"
+
+# Display-only lookup for commonly negotiated SOP Classes (PS3.4).
+SOP_CLASS_NAMES = {
+    "1.2.840.10008.1.1": "Verification",
+    # Storage — imaging
+    "1.2.840.10008.5.1.4.1.1.1": "CR Image Storage",
+    "1.2.840.10008.5.1.4.1.1.1.1": "Digital X-Ray Image Storage (Presentation)",
+    "1.2.840.10008.5.1.4.1.1.1.1.1": "Digital X-Ray Image Storage (Processing)",
+    "1.2.840.10008.5.1.4.1.1.2": "CT Image Storage",
+    "1.2.840.10008.5.1.4.1.1.2.1": "Enhanced CT Image Storage",
+    "1.2.840.10008.5.1.4.1.1.2.2": "Legacy Converted Enhanced CT Image Storage",
+    "1.2.840.10008.5.1.4.1.1.3.1": "Ultrasound Multi-frame Image Storage",
+    "1.2.840.10008.5.1.4.1.1.4": "MR Image Storage",
+    "1.2.840.10008.5.1.4.1.1.4.1": "Enhanced MR Image Storage",
+    "1.2.840.10008.5.1.4.1.1.4.4": "Legacy Converted Enhanced MR Image Storage",
+    "1.2.840.10008.5.1.4.1.1.6.1": "Ultrasound Image Storage",
+    "1.2.840.10008.5.1.4.1.1.6.2": "Enhanced US Volume Storage",
+    "1.2.840.10008.5.1.4.1.1.7": "Secondary Capture Image Storage",
+    "1.2.840.10008.5.1.4.1.1.7.1": "Multi-frame Single Bit SC Image Storage",
+    "1.2.840.10008.5.1.4.1.1.7.2": "Multi-frame Grayscale Byte SC Image Storage",
+    "1.2.840.10008.5.1.4.1.1.7.3": "Multi-frame Grayscale Word SC Image Storage",
+    "1.2.840.10008.5.1.4.1.1.7.4": "Multi-frame True Color SC Image Storage",
+    "1.2.840.10008.5.1.4.1.1.12.1": "X-Ray Angiographic Image Storage",
+    "1.2.840.10008.5.1.4.1.1.12.2": "X-Ray Radiofluoroscopic Image Storage",
+    "1.2.840.10008.5.1.4.1.1.20": "Nuclear Medicine Image Storage",
+    "1.2.840.10008.5.1.4.1.1.77.1.1": "VL Endoscopic Image Storage",
+    "1.2.840.10008.5.1.4.1.1.77.1.4": "VL Photographic Image Storage",
+    "1.2.840.10008.5.1.4.1.1.77.1.5.1": "Ophthalmic Photography 8 Bit Image Storage",
+    "1.2.840.10008.5.1.4.1.1.104.1": "Encapsulated PDF Storage",
+    "1.2.840.10008.5.1.4.1.1.128": "PET Image Storage",
+    "1.2.840.10008.5.1.4.1.1.128.1": "Enhanced PET Image Storage",
+    "1.2.840.10008.5.1.4.1.1.481.1": "RT Image Storage",
+    "1.2.840.10008.5.1.4.1.1.481.2": "RT Dose Storage",
+    "1.2.840.10008.5.1.4.1.1.481.3": "RT Structure Set Storage",
+    "1.2.840.10008.5.1.4.1.1.481.5": "RT Plan Storage",
+    "1.2.840.10008.5.1.4.1.1.66.4": "Segmentation Storage",
+    # Query/Retrieve
+    "1.2.840.10008.5.1.4.1.2.1.1": "Patient Root QR Find",
+    "1.2.840.10008.5.1.4.1.2.1.2": "Patient Root QR Move",
+    "1.2.840.10008.5.1.4.1.2.1.3": "Patient Root QR Get",
+    "1.2.840.10008.5.1.4.1.2.2.1": "Study Root QR Find",
+    "1.2.840.10008.5.1.4.1.2.2.2": "Study Root QR Move",
+    "1.2.840.10008.5.1.4.1.2.2.3": "Study Root QR Get",
+    # Worklist
+    "1.2.840.10008.5.1.4.31": "Modality Worklist Find",
+    # MPPS
+    "1.2.840.10008.3.1.2.3.3": "Modality Performed Procedure Step",
+    # Storage Commitment
+    "1.2.840.10008.1.20.1": "Storage Commitment Push Model",
+    # Presentation State
+    "1.2.840.10008.5.1.4.1.1.11.1": "Grayscale Softcopy Presentation State Storage",
+    "1.2.840.10008.5.1.4.1.1.11.2": "Color Softcopy Presentation State Storage",
+    # Structured Report
+    "1.2.840.10008.5.1.4.1.1.88.11": "Basic Text SR Storage",
+    "1.2.840.10008.5.1.4.1.1.88.22": "Enhanced SR Storage",
+    "1.2.840.10008.5.1.4.1.1.88.33": "Comprehensive SR Storage",
+}
 
 PDU_TYPES = {
     0x01: "A-ASSOCIATE-RQ", 0x02: "A-ASSOCIATE-AC",
@@ -237,6 +368,56 @@ STATUS_ERR_RESOURCE_LIMITATION = 0x0213
 STATUS_ERR_UNRECOGNIZED_OPERATION = 0x0211
 STATUS_ERR_NO_SUCH_ACTION_TYPE = 0x0123
 STATUS_ERR_NOT_AUTHORIZED = 0x0124
+STATUS_ERR_REFUSED_OUT_OF_RESOURCES = 0xA700
+STATUS_ERR_REFUSED_OUT_OF_RESOURCES_MOVE = 0xA701
+STATUS_ERR_REFUSED_MOVE_DESTINATION_UNKNOWN = 0xA801
+STATUS_ERR_REFUSED_SOP_CLASS_NOT_SUPPORTED = 0xA900
+
+# Combined lookup dict for display purposes.
+DIMSE_STATUS_CODES = {
+    0x0000: "Success",
+    0x0001: "Warning: Requested optional attributes not supported",
+    0x0107: "Warning: Attribute list error",
+    0x0116: "Warning: Attribute value out of range",
+    0x0110: "Processing failure",
+    0x0111: "Duplicate SOP instance",
+    0x0112: "No such SOP instance",
+    0x0113: "No such event type",
+    0x0114: "No such argument",
+    0x0115: "Invalid argument value",
+    0x0117: "Invalid SOP instance",
+    0x0118: "No such SOP class",
+    0x0119: "Class-instance conflict",
+    0x0120: "Missing attribute",
+    0x0121: "Missing attribute value",
+    0x0122: "SOP class not supported",
+    0x0123: "No such action type",
+    0x0124: "Not authorized",
+    0x0210: "Duplicate invocation",
+    0x0211: "Unrecognized operation",
+    0x0212: "Mistyped argument",
+    0x0213: "Resource limitation",
+    0xA700: "Refused: Out of resources",
+    0xA701: "Refused: Out of resources — unable to calculate number of matches",
+    0xA801: "Refused: Move destination unknown",
+    0xA900: "Refused: SOP class not supported",
+    0xFE00: "Cancel",
+    0xFF00: "Pending",
+    0xFF01: "Pending: Warning — optional keys not supported",
+}
+
+
+def dimse_status_repr(code: int) -> str:
+    """Return a human-readable string for a DIMSE status code (PS3.7 Annex C)."""
+    if code in DIMSE_STATUS_CODES:
+        return "%s (0x%04X)" % (DIMSE_STATUS_CODES[code], code)
+    if 0xA000 <= code <= 0xAFFF:
+        return "Refused (service-class-specific 0x%04X)" % code
+    if 0xB000 <= code <= 0xBFFF:
+        return "Warning (service-class-specific 0x%04X)" % code
+    if 0xC000 <= code <= 0xCFFF:
+        return "Unable to process (service-class-specific 0x%04X)" % code
+    return "0x%04X" % code
 
 
 def _uid_to_bytes(uid: Union[str, bytes]) -> bytes:
@@ -304,6 +485,20 @@ class DICOMElementField(Field[bytes, bytes]):
         return s + hdr + val
 
     def getfield(self, pkt: Optional[Packet], s: bytes) -> Tuple[bytes, bytes]:
+        if len(s) < 8:
+            return s, b""
+        # Skip unexpected elements that sort before ours (e.g. retired (0000,0001)).
+        while len(s) >= 8:
+            tag_g, tag_e, length = struct.unpack("<HHI", s[:8])
+            if tag_g == self.tag_group and tag_e == self.tag_elem:
+                break
+            if (tag_g, tag_e) > (self.tag_group, self.tag_elem):
+                return s, b""
+            if len(s) < 8 + length:
+                return s, b""
+            log.info("Skipping unexpected DICOM element (%04X,%04X)",
+                     tag_g, tag_e)
+            s = s[8 + length:]
         if len(s) < 8:
             return s, b""
         tag_g, tag_e, length = struct.unpack("<HHI", s[:8])
@@ -393,6 +588,13 @@ class DICOMULField(DICOMElementField):
         return RandInt()
 
 
+class DICOMStatusField(DICOMUSField):
+    """DIMSE Status field (0000,0900) with range-aware display."""
+
+    def i2repr(self, pkt: Optional[Packet], val: Any) -> str:
+        return dimse_status_repr(val)
+
+
 class DICOMAEDIMSEField(DICOMElementField):
     """DICOM AE element field for DIMSE - 16 bytes, space-padded."""
 
@@ -447,7 +649,7 @@ class DICOMATField(DICOMElementField):
 
 
 class DICOMGenericItem(Packet):
-    """Generic fallback for unrecognized DICOM variable items."""
+    """Generic fallback — unknown sub-item types are skipped per PS3.8 D.2."""
     name = "DICOM Generic Item"
     fields_desc = [
         StrLenField(
@@ -459,6 +661,12 @@ class DICOMGenericItem(Packet):
             )
         ),
     ]
+
+    def post_dissect(self, s: bytes) -> bytes:
+        if self.underlayer and hasattr(self.underlayer, "item_type"):
+            log.info("Skipping unknown sub-item type 0x%02X (%d bytes)",
+                     self.underlayer.item_type, len(self.data))
+        return s
 
     def extract_padding(self, s: bytes) -> Tuple[bytes, bytes]:
         return b"", s
@@ -541,7 +749,11 @@ class DICOMAbstractSyntax(Packet):
         return b"", s
 
     def mysummary(self) -> str:
-        return "AbstractSyntax %s" % self.uid.decode("ascii").rstrip("\x00")
+        uid_str = self.uid.decode("ascii").rstrip("\x00")
+        name = SOP_CLASS_NAMES.get(uid_str)
+        if name:
+            return "AbstractSyntax %s (%s)" % (uid_str, name)
+        return "AbstractSyntax %s" % uid_str
 
 
 class DICOMTransferSyntax(Packet):
@@ -735,7 +947,7 @@ class DICOMSOPClassExtendedNegotiation(Packet):
 
 
 class DICOMSOPClassCommonExtendedNegotiation(Packet):
-    """For item type 0x57, byte 2 of the header is Sub-Item-version (not reserved)."""
+    """Item 0x57 — header byte 2 is Sub-Item-Version (PS3.7 D.3.3.6), not reserved."""
     name = "DICOM SOP Class Common Extended Negotiation"
     fields_desc = [
         FieldLenField("sop_class_uid_length", None,
@@ -752,12 +964,19 @@ class DICOMSOPClassCommonExtendedNegotiation(Packet):
                     length_from=lambda pkt: pkt.related_sop_class_uid_length),
     ]
 
+    @property
+    def sub_item_version(self) -> int:
+        """Return the Sub-Item-Version from the DICOMVariableItem header."""
+        if self.underlayer and hasattr(self.underlayer, "reserved"):
+            return self.underlayer.reserved
+        return 0
+
     def extract_padding(self, s: bytes) -> Tuple[bytes, bytes]:
         return b"", s
 
     def mysummary(self) -> str:
         uid = self.sop_class_uid.decode("ascii").rstrip("\x00")
-        return "SOPClassCommonExtNeg %s" % uid
+        return "SOPClassCommonExtNeg v%d %s" % (self.sub_item_version, uid)
 
 
 class DICOMUserIdentity(Packet):
@@ -865,6 +1084,8 @@ class DICOM(Packet):
 
 
 class PresentationDataValueItem(Packet):
+    # PDV header is BE (PS3.8); DIMSE payload inside data is LE (PS3.7 §9.3).
+
     name = "PresentationDataValueItem"
     fields_desc = [
         FieldLenField("length", None, length_of="data", fmt="!I",
@@ -922,6 +1143,7 @@ class A_ASSOCIATE_RQ(Packet):
 
 
 class A_ASSOCIATE_AC(Packet):
+    # Bytes 11-42 / 43-74 are reserved but echo the AE titles from A-ASSOCIATE-RQ.
     name = "A-ASSOCIATE-AC"
     fields_desc = [
         ShortField("protocol_version", 1),
@@ -1100,7 +1322,7 @@ class C_ECHO_RSP(DIMSEPacket):
         DICOMUSField("command_field", 0x8030, 0x0000, 0x0100),
         DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
         DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
-        DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMStatusField("status", 0x0000, 0x0000, 0x0900),
     ]
 
     def mysummary(self) -> str:
@@ -1153,7 +1375,7 @@ class C_STORE_RSP(DIMSEPacket):
         DICOMUSField("command_field", 0x8001, 0x0000, 0x0100),
         DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
         DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
-        DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMStatusField("status", 0x0000, 0x0000, 0x0900),
         DICOMUIDField("affected_sop_instance_uid",
                       "1.2.3.4.5.6.7.8.9", 0x0000, 0x1000),
     ]
@@ -1196,7 +1418,7 @@ class C_FIND_RSP(DIMSEPacket):
         DICOMUSField("command_field", 0x8020, 0x0000, 0x0100),
         DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
         DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
-        DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMStatusField("status", 0x0000, 0x0000, 0x0900),
     ]
 
     def mysummary(self) -> str:
@@ -1237,7 +1459,7 @@ class C_GET_RSP(DIMSEPacket):
         DICOMUSField("command_field", 0x8010, 0x0000, 0x0100),
         DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
         DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
-        DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMStatusField("status", 0x0000, 0x0000, 0x0900),
         DICOMUSField("num_remaining", 0, 0x0000, 0x1020),
         DICOMUSField("num_completed", 0, 0x0000, 0x1021),
         DICOMUSField("num_failed", 0, 0x0000, 0x1022),
@@ -1284,7 +1506,7 @@ class C_MOVE_RSP(DIMSEPacket):
         DICOMUSField("command_field", 0x8021, 0x0000, 0x0100),
         DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
         DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
-        DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMStatusField("status", 0x0000, 0x0000, 0x0900),
         DICOMUSField("num_remaining", 0, 0x0000, 0x1020),
         DICOMUSField("num_completed", 0, 0x0000, 0x1021),
         DICOMUSField("num_failed", 0, 0x0000, 0x1022),
@@ -1342,7 +1564,7 @@ class N_EVENT_REPORT_RSP(DIMSEPacket):
         DICOMUSField("command_field", 0x8100, 0x0000, 0x0100),
         DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
         DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
-        DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMStatusField("status", 0x0000, 0x0000, 0x0900),
         DICOMUIDField("affected_sop_instance_uid", "", 0x0000, 0x1000),
         DICOMUSField("event_type_id", 0, 0x0000, 0x1002),
     ]
@@ -1384,7 +1606,7 @@ class N_GET_RSP(DIMSEPacket):
         DICOMUSField("command_field", 0x8110, 0x0000, 0x0100),
         DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
         DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
-        DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMStatusField("status", 0x0000, 0x0000, 0x0900),
         DICOMUIDField("affected_sop_instance_uid", "", 0x0000, 0x1000),
     ]
 
@@ -1424,7 +1646,7 @@ class N_SET_RSP(DIMSEPacket):
         DICOMUSField("command_field", 0x8120, 0x0000, 0x0100),
         DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
         DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
-        DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMStatusField("status", 0x0000, 0x0000, 0x0900),
         DICOMUIDField("affected_sop_instance_uid", "", 0x0000, 0x1000),
     ]
 
@@ -1465,7 +1687,7 @@ class N_ACTION_RSP(DIMSEPacket):
         DICOMUSField("command_field", 0x8130, 0x0000, 0x0100),
         DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
         DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
-        DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMStatusField("status", 0x0000, 0x0000, 0x0900),
         DICOMUIDField("affected_sop_instance_uid", "", 0x0000, 0x1000),
         DICOMUSField("action_type_id", 0, 0x0000, 0x1008),
     ]
@@ -1506,7 +1728,7 @@ class N_CREATE_RSP(DIMSEPacket):
         DICOMUSField("command_field", 0x8140, 0x0000, 0x0100),
         DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
         DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
-        DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMStatusField("status", 0x0000, 0x0000, 0x0900),
         DICOMUIDField("affected_sop_instance_uid", "", 0x0000, 0x1000),
     ]
 
@@ -1546,7 +1768,7 @@ class N_DELETE_RSP(DIMSEPacket):
         DICOMUSField("command_field", 0x8150, 0x0000, 0x0100),
         DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
         DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
-        DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMStatusField("status", 0x0000, 0x0000, 0x0900),
         DICOMUIDField("affected_sop_instance_uid", "", 0x0000, 0x1000),
     ]
 
