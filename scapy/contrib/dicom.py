@@ -271,7 +271,6 @@ SOP_CLASS_NAMES = {
     "1.2.840.10008.5.1.4.1.1.104.1": "Encapsulated PDF Storage",
     "1.2.840.10008.5.1.4.1.1.128": "PET Image Storage",
     "1.2.840.10008.5.1.4.1.1.128.1": "Enhanced PET Image Storage",
-    "1.2.840.10008.5.1.4.1.1.130": "Enhanced PET Image Storage",
     "1.2.840.10008.5.1.4.1.1.481.1": "RT Image Storage",
     "1.2.840.10008.5.1.4.1.1.481.2": "RT Dose Storage",
     "1.2.840.10008.5.1.4.1.1.481.3": "RT Structure Set Storage",
@@ -290,7 +289,6 @@ SOP_CLASS_NAMES = {
     "1.2.840.10008.3.1.2.3.3": "Modality Performed Procedure Step",
     # Storage Commitment
     "1.2.840.10008.1.20.1": "Storage Commitment Push Model",
-    "1.2.840.10008.1.20.2": "Storage Commitment Pull Model",
     # Presentation State
     "1.2.840.10008.5.1.4.1.1.11.1": "Grayscale Softcopy Presentation State Storage",
     "1.2.840.10008.5.1.4.1.1.11.2": "Color Softcopy Presentation State Storage",
@@ -491,11 +489,13 @@ class DICOMElementField(Field[bytes, bytes]):
     def getfield(self, pkt: Optional[Packet], s: bytes) -> Tuple[bytes, bytes]:
         if len(s) < 8:
             return s, b""
-        # Skip retired/unknown elements until we find ours (e.g. (0000,0001)).
+        # Skip unexpected elements that sort before ours (e.g. retired (0000,0001)).
         while len(s) >= 8:
             tag_g, tag_e, length = struct.unpack("<HHI", s[:8])
             if tag_g == self.tag_group and tag_e == self.tag_elem:
                 break
+            if (tag_g, tag_e) > (self.tag_group, self.tag_elem):
+                return s, b""
             if len(s) < 8 + length:
                 return s, b""
             log.info("Skipping unexpected DICOM element (%04X,%04X)",
@@ -751,7 +751,11 @@ class DICOMAbstractSyntax(Packet):
         return b"", s
 
     def mysummary(self) -> str:
-        return "AbstractSyntax %s" % self.uid.decode("ascii").rstrip("\x00")
+        uid_str = self.uid.decode("ascii").rstrip("\x00")
+        name = SOP_CLASS_NAMES.get(uid_str)
+        if name:
+            return "AbstractSyntax %s (%s)" % (uid_str, name)
+        return "AbstractSyntax %s" % uid_str
 
 
 class DICOMTransferSyntax(Packet):
