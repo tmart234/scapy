@@ -88,7 +88,6 @@ __all__ = [
     "A_RELEASE_RP",
     "A_ABORT",
     "DICOMVariableItem",
-    "DICOMGenericItem",
     "DICOMApplicationContext",
     "DICOMPresentationContextRQ",
     "DICOMPresentationContextAC",
@@ -1317,15 +1316,13 @@ class DICOMImplementationVersionName(Packet):
     """DICOM Implementation Version Name sub-item."""
 
     name = "DICOM Implementation Version Name"
-    # Field is named "name" but Packet.name (the display string) shadows
-    # attribute access. Use getfieldval/fields dict to read the value.
     fields_desc = [
         StrLenField(
             "name", b"",
             length_from=lambda pkt: (
                 pkt.underlayer.length
                 if pkt.underlayer and pkt.underlayer.length
-                else len(pkt.fields.get("name", b""))
+                else len(pkt.name)
             )
         ),
     ]
@@ -1334,10 +1331,7 @@ class DICOMImplementationVersionName(Packet):
         return b"", s
 
     def mysummary(self) -> str:
-        val = self.getfieldval("name")
-        if not isinstance(val, bytes):
-            val = b""
-        return "ImplVersion %s" % val.decode("ascii", errors="replace").rstrip("\x00")
+        return "ImplVersion %s" % self.name.decode("ascii").rstrip("\x00")
 
 
 class DICOMAsyncOperationsWindow(Packet):
