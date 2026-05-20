@@ -830,3 +830,468 @@ assert parsed.haslayer(A_ASSOCIATE_RQ)
 pkt = DICOM() / P_DATA_TF(pdv_items=[])
 serialized = bytes(pkt)
 assert len(serialized) == 6
+
+############
+############
++ dimse_status_repr tests
+
+= dimse_status_repr covers known codes and all PS3.7 ranges
+assert "Success" in dimse_status_repr(0x0000)
+assert "Cancel" in dimse_status_repr(0xFE00)
+assert "Pending" in dimse_status_repr(0xFF00)
+assert "Processing failure" in dimse_status_repr(0x0110)
+# Service-class-specific Refused range 0xA000-0xAFFF
+assert "service-class-specific" in dimse_status_repr(0xA500)
+assert "Refused" in dimse_status_repr(0xA500)
+# Service-class-specific Warning range 0xB000-0xBFFF
+assert "service-class-specific" in dimse_status_repr(0xB500)
+assert "Warning" in dimse_status_repr(0xB500)
+# Unable-to-process range 0xC000-0xCFFF
+assert "Unable to process" in dimse_status_repr(0xC500)
+# Unknown code falls back to bare hex
+assert dimse_status_repr(0x1234) == "0x1234"
+
+############
+############
++ UID conversion helper edge cases
+
+= _uid_to_bytes handles bytes, even-length and unsupported input
+assert _uid_to_bytes(b"1.2.3") == b"1.2.3\x00"
+assert _uid_to_bytes("1.2.3.4") == b"1.2.3.4\x00"
+assert _uid_to_bytes(b"1234") == b"1234"
+assert _uid_to_bytes(None) == b""
+assert _uid_to_bytes(123) == b""
+
+= _uid_to_bytes_raw never pads and handles unsupported input
+assert _uid_to_bytes_raw("1.2.3") == b"1.2.3"
+assert _uid_to_bytes_raw(b"1.2.3") == b"1.2.3"
+assert _uid_to_bytes_raw(None) == b""
+assert _uid_to_bytes_raw(123) == b""
+
+############
+############
++ Custom DICOM field round-trip tests
+
+= DICOMUSField getfield round-trip and short-buffer fallback
+fld = DICOMUSField("t", 0, 0x0010, 0x0020)
+remain, val = fld.getfield(None, fld.addfield(None, b"", 0x1234))
+assert val == 0x1234 and remain == b""
+remain, val = fld.getfield(None, struct.pack("<HHI", 0x0010, 0x0020, 1) + b"\x42")
+assert val == 0
+assert fld.i2repr(None, 0x1234) == "0x1234"
+
+= DICOMULField getfield round-trip and short-buffer fallback
+fld = DICOMULField("t", 0, 0x0010, 0x0020)
+remain, val = fld.getfield(None, fld.addfield(None, b"", 0xDEADBEEF))
+assert val == 0xDEADBEEF and remain == b""
+remain, val = fld.getfield(None, struct.pack("<HHI", 0x0010, 0x0020, 2) + b"\x42\x43")
+assert val == 0
+
+= DICOMElementField i2repr and getfield branches
+fld = DICOMElementField("t", b"", 0x0010, 0x0020)
+assert fld.i2repr(None, b"VALUE\x00") == "VALUE"
+assert fld.i2repr(None, b"\xff\xfe\xfd") == "fffefd"
+assert fld.i2repr(None, 42) == "42"
+remain, val = fld.getfield(None, b"\x00\x00\x00")
+assert val == b"" and remain == b"\x00\x00\x00"
+
+= DICOMElementField getfield raises on truncated value
+fld = DICOMElementField("t", b"", 0x0010, 0x0020)
+malformed = struct.pack("<HHI", 0x0010, 0x0020, 100) + b"abcd"
+try:
+    fld.getfield(None, malformed)
+    assert False
+except Scapy_Exception:
+    pass
+
+= DICOMUIDField and DICOMUIDFieldRaw addfield branches
+uf = DICOMUIDField("t", b"", 0x0010, 0x0020)
+assert uf.addfield(None, b"", b"") == struct.pack("<HHI", 0x0010, 0x0020, 0)
+assert uf.i2repr(None, "1.2.3") == "1.2.3"
+raw = DICOMUIDFieldRaw("t", b"", 0x0010, 0x0020)
+assert raw.addfield(None, b"", "1.2.3") == struct.pack("<HHI", 0x0010, 0x0020, 5) + b"1.2.3"
+
+= DICOMAEDIMSEField addfield and i2repr branches
+fld = DICOMAEDIMSEField("t", b"", 0x0000, 0x0600)
+assert fld.addfield(None, b"", None) == struct.pack("<HHI", 0x0000, 0x0600, 16) + b" " * 16
+assert fld.addfield(None, b"", "DEST") == struct.pack("<HHI", 0x0000, 0x0600, 16) + b"DEST".ljust(16, b" ")
+assert fld.i2repr(None, b"DEST            ") == "DEST"
+assert fld.i2repr(None, "DEST    ") == "DEST"
+
+= DICOMATField addfield/getfield branches
+fld = DICOMATField("t", [], 0x0000, 0x1005)
+assert fld.addfield(None, b"", None) == struct.pack("<HHI", 0x0000, 0x1005, 0)
+single_int = fld.addfield(None, b"", 0x00100010)
+assert single_int == struct.pack("<HHI", 0x0000, 0x1005, 4) + struct.pack("<HH", 0x0010, 0x0010)
+remain, tags = fld.getfield(None, single_int)
+assert tags == [(0x0010, 0x0010)] and remain == b""
+assert fld.randval() == []
+
+= DICOMAETitleField i2m and i2repr branches
+fld = DICOMAETitleField("ae")
+assert fld.i2m(None, None) == b" " * 16
+assert fld.i2m(None, "SCAPY") == b"SCAPY".ljust(16, b" ")
+assert fld.i2m(None, "A" * 32) == b"A" * 16
+assert fld.i2repr(None, b"SCU             ") == "SCU"
+assert fld.i2repr(None, "ABC   ") == "ABC"
+
+############
+############
++ DIMSE packet mysummary / hashret / answers coverage
+
+= All DIMSE request packets expose mysummary and hashret
+rq_classes = [C_ECHO_RQ, C_STORE_RQ, C_FIND_RQ, C_MOVE_RQ, C_GET_RQ,
+              N_EVENT_REPORT_RQ, N_GET_RQ, N_SET_RQ, N_ACTION_RQ,
+              N_CREATE_RQ, N_DELETE_RQ]
+for cls in rq_classes:
+    pkt = cls(message_id=0x1234)
+    assert isinstance(pkt.mysummary(), str)
+    assert pkt.hashret() == struct.pack("<H", 0x1234)
+
+= All DIMSE response packets expose mysummary and hashret
+rsp_classes = [C_ECHO_RSP, C_STORE_RSP, C_FIND_RSP, C_MOVE_RSP, C_GET_RSP,
+               N_EVENT_REPORT_RSP, N_GET_RSP, N_SET_RSP, N_ACTION_RSP,
+               N_CREATE_RSP, N_DELETE_RSP]
+for cls in rsp_classes:
+    pkt = cls(message_id_responded=0x4321)
+    assert isinstance(pkt.mysummary(), str)
+    assert pkt.hashret() == struct.pack("<H", 0x4321)
+
+= C_CANCEL_RQ mysummary
+assert "C-CANCEL-RQ" in C_CANCEL_RQ(message_id_being_responded_to=5).mysummary()
+
+= DIMSE response answers matching and non-matching requests
+pairs = [(C_ECHO_RSP, C_ECHO_RQ), (C_STORE_RSP, C_STORE_RQ),
+         (C_FIND_RSP, C_FIND_RQ), (C_MOVE_RSP, C_MOVE_RQ),
+         (C_GET_RSP, C_GET_RQ), (N_EVENT_REPORT_RSP, N_EVENT_REPORT_RQ),
+         (N_GET_RSP, N_GET_RQ), (N_SET_RSP, N_SET_RQ),
+         (N_ACTION_RSP, N_ACTION_RQ), (N_CREATE_RSP, N_CREATE_RQ),
+         (N_DELETE_RSP, N_DELETE_RQ)]
+for rsp_cls, rq_cls in pairs:
+    assert rsp_cls(message_id_responded=7).answers(rq_cls(message_id=7)) == True
+    assert rsp_cls(message_id_responded=7).answers(rq_cls(message_id=9)) == False
+    assert rsp_cls(message_id_responded=7).answers(A_RELEASE_RQ()) == 0
+
+############
+############
++ PDU summary and answers coverage
+
+= PDU mysummary / hashret / answers branches
+assert "A-ASSOCIATE-RQ" in A_ASSOCIATE_RQ(called_ae_title=b"T", calling_ae_title=b"S").mysummary()
+assert "A-ASSOCIATE-AC" in A_ASSOCIATE_AC(called_ae_title=b"T", calling_ae_title=b"S").mysummary()
+assert "A-ASSOCIATE-RJ" in A_ASSOCIATE_RJ().mysummary()
+assert A_ASSOCIATE_RQ(called_ae_title=b"T", calling_ae_title=b"S").hashret()
+assert A_ASSOCIATE_AC(called_ae_title=b"T", calling_ae_title=b"S").hashret()
+assert A_ASSOCIATE_AC().answers(A_ASSOCIATE_RQ()) == True
+assert A_ASSOCIATE_AC().answers(A_RELEASE_RQ()) == False
+assert A_ASSOCIATE_RJ().answers(A_ASSOCIATE_RQ()) == True
+assert A_ASSOCIATE_RJ().answers(A_RELEASE_RQ()) == False
+assert A_RELEASE_RP().answers(A_RELEASE_RQ()) == True
+assert A_RELEASE_RP().answers(A_ASSOCIATE_RQ()) == False
+assert A_RELEASE_RQ().mysummary() == "A-RELEASE-RQ"
+assert A_RELEASE_RP().mysummary() == "A-RELEASE-RP"
+assert "A-ABORT" in A_ABORT().mysummary()
+assert "DICOM" in DICOM().mysummary()
+assert "P-DATA-TF" in P_DATA_TF(pdv_items=[PresentationDataValueItem(data=b"x")]).mysummary()
+
+= PresentationDataValueItem mysummary command/data and last flags
+cmd = PresentationDataValueItem(context_id=3, data=b"hi", is_command=1, is_last=1)
+assert "CMD" in cmd.mysummary() and "LAST" in cmd.mysummary()
+data = PresentationDataValueItem(context_id=5, data=b"hi", is_command=0, is_last=0)
+assert "DATA" in data.mysummary() and "LAST" not in data.mysummary()
+
+= Variable item and sub-item mysummary methods
+assert "Item" in DICOMVariableItem(item_type=0x10).mysummary()
+assert "AppContext" in DICOMApplicationContext(uid=b"1.2.3\x00").mysummary()
+assert "AbstractSyntax" in DICOMAbstractSyntax(uid=b"1.2.3\x00").mysummary()
+assert "TransferSyntax" in DICOMTransferSyntax(uid=b"1.2.3\x00").mysummary()
+assert "PresentationContext-RQ" in DICOMPresentationContextRQ(context_id=5).mysummary()
+assert "PresentationContext-AC" in DICOMPresentationContextAC(context_id=5, result=0).mysummary()
+assert "ImplClassUID" in DICOMImplementationClassUID(uid=b"1.2.3\x00").mysummary()
+assert "AsyncOps" in DICOMAsyncOperationsWindow(max_ops_invoked=4, max_ops_performed=2).mysummary()
+assert "RoleSelection" in DICOMSCPSCURoleSelection(sop_class_uid=b"1.2.3").mysummary()
+assert "SOPClassExtNeg" in DICOMSOPClassExtendedNegotiation(sop_class_uid=b"1.2.3").mysummary()
+assert "SOPClassCommonExtNeg" in DICOMSOPClassCommonExtendedNegotiation(sop_class_uid=b"1.2.3").mysummary()
+assert "UserIdentity" in DICOMUserIdentity(primary_field=b"u").mysummary()
+assert "UserIdentityResponse" in DICOMUserIdentityResponse(server_response=b"t").mysummary()
+assert "UserInfo" in DICOMUserInformation(sub_items=[DICOMVariableItem() / DICOMMaximumLength()]).mysummary()
+
+############
+############
++ extract_padding edge cases
+
+= DICOM extract_padding returns full input when length is None
+pkt = DICOM()
+pkt.length = None
+payload, remaining = pkt.extract_padding(b"abc")
+assert payload == b"abc" and remaining == b""
+
+= DICOMVariableItem extract_padding raises on truncated buffer
+item = DICOMVariableItem()
+item.length = 100
+try:
+    item.extract_padding(b"abc")
+    assert False
+except Scapy_Exception:
+    pass
+
+############
+############
++ SOP Class extended negotiation round-trips
+
+= DICOMSOPClassExtendedNegotiation builds and reparses
+inner = DICOMSOPClassExtendedNegotiation(sop_class_uid=b"1.2.840.10008.1.1", service_class_application_information=b"\x01\x02\x03\x04")
+parsed = DICOMVariableItem(bytes(DICOMVariableItem() / inner))
+assert parsed.item_type == 0x56
+assert parsed[DICOMSOPClassExtendedNegotiation].sop_class_uid == b"1.2.840.10008.1.1"
+assert parsed[DICOMSOPClassExtendedNegotiation].service_class_application_information == b"\x01\x02\x03\x04"
+
+= DICOMSOPClassCommonExtendedNegotiation builds and reparses
+inner = DICOMSOPClassCommonExtendedNegotiation(sop_class_uid=b"1.2.840.10008.1.1", service_class_uid=b"1.2.840.10008.4.2", related_sop_class_uids=b"1.2.3.4")
+parsed = DICOMVariableItem(bytes(DICOMVariableItem() / inner))
+assert parsed.item_type == 0x57
+assert parsed[DICOMSOPClassCommonExtendedNegotiation].service_class_uid == b"1.2.840.10008.4.2"
+assert parsed[DICOMSOPClassCommonExtendedNegotiation].related_sop_class_uids == b"1.2.3.4"
+
+############
+############
++ parse_dimse_status edge cases
+
+= parse_dimse_status returns None for empty, truncated and status-less input
+assert parse_dimse_status(b"") is None
+assert parse_dimse_status(b"\x00" * 4) is None
+assert parse_dimse_status(bytes(C_ECHO_RQ(message_id=1))) is None
+
+= parse_dimse_status returns None when status element value is truncated
+hdr = struct.pack("<HHI", 0x0000, 0x0000, 4) + struct.pack("<I", 10)
+truncated = hdr + struct.pack("<HHI", 0x0000, 0x0900, 2)
+assert parse_dimse_status(truncated) is None
+
+############
+############
++ DICOMSocket without I/O
+
+= DICOMSocket init defaults and helpers
+sock = DICOMSocket("127.0.0.1", 11112, "DEST_AE", src_ae="SRC_AE")
+assert sock.dst_ip == "127.0.0.1" and sock.dst_port == 11112
+assert sock.dst_ae == "DEST_AE" and sock.src_ae == "SRC_AE"
+assert sock.sock is None and sock.stream is None
+assert sock.assoc_established is False and sock.max_pdu_length == 16384
+sock._current_message_id_counter = 100
+assert sock._get_next_message_id() == 101
+sock._current_message_id_counter = 0xFFFF
+assert sock._get_next_message_id() == 0
+
+= DICOMSocket _find_accepted_context_id lookup
+sock = DICOMSocket("127.0.0.1", 11112, "DEST_AE")
+assert sock._find_accepted_context_id("1.2.3") is None
+sock.accepted_contexts = {1: (VERIFICATION_SOP_CLASS_UID, DEFAULT_TRANSFER_SYNTAX_UID)}
+assert sock._find_accepted_context_id(VERIFICATION_SOP_CLASS_UID) == 1
+assert sock._find_accepted_context_id(VERIFICATION_SOP_CLASS_UID, DEFAULT_TRANSFER_SYNTAX_UID) == 1
+assert sock._find_accepted_context_id(VERIFICATION_SOP_CLASS_UID, "9.9.9") is None
+assert sock._find_accepted_context_id("UNKNOWN") is None
+
+= DICOMSocket guard clauses without association
+sock = DICOMSocket("127.0.0.1", 11112, "DEST_AE")
+assert sock.c_echo() is None
+assert sock.c_store(b"d", "1.2.3", "1.2.3.4", DEFAULT_TRANSFER_SYNTAX_UID) is None
+assert sock.release() is True
+sock.close()
+assert sock.sock is None and sock.stream is None
+
+= DICOMSocket c_echo/c_store with association but no accepted context
+sock = DICOMSocket("127.0.0.1", 11112, "DEST_AE")
+sock.assoc_established = True
+assert sock.c_echo() is None
+assert sock.c_store(b"d", "1.2.3", "1.2.3.4", DEFAULT_TRANSFER_SYNTAX_UID) is None
+
+= DICOMSocket connect failure on refused port returns False
+sock = DICOMSocket("127.0.0.1", 1, "DEST_AE", read_timeout=1)
+assert sock.connect() is False
+assert sock.associate() is False
+
+############
+############
++ DICOMSocket with mock stream
+
+= define mock stream and socket helpers
+class _FakeSock:
+    def __init__(self):
+        self._sent = b""
+    def sendall(self, data):
+        self._sent += data
+    def close(self):
+        pass
+
+class _FakeStream:
+    def __init__(self):
+        self.sent = []
+        self.recv_responses = []
+        self.closed = False
+    def send(self, pkt):
+        self.sent.append(bytes(pkt))
+    def recv(self):
+        return self.recv_responses.pop(0) if self.recv_responses else None
+    def sr1(self, pkt, timeout=None, **kwargs):
+        self.sent.append(bytes(pkt))
+        return self.recv_responses.pop(0) if self.recv_responses else None
+    def close(self):
+        self.closed = True
+
+assert _FakeStream is not None
+
+= DICOMSocket send / recv / sr1 / send_raw_bytes / close
+sock = DICOMSocket("127.0.0.1", 11112, "DEST_AE")
+fake = _FakeStream()
+sock.stream = fake
+sock.sock = _FakeSock()
+sock.send(DICOM() / A_RELEASE_RQ())
+assert len(fake.sent) == 1
+assert sock.recv() is None
+fake.recv_responses.append(DICOM() / A_RELEASE_RP())
+assert sock.recv().haslayer(A_RELEASE_RP)
+fake.recv_responses.append(DICOM() / A_RELEASE_RP())
+assert sock.sr1(DICOM() / A_RELEASE_RQ()).haslayer(A_RELEASE_RP)
+sock.send_raw_bytes(b"raw_payload")
+assert b"raw_payload" in sock.sock._sent
+sock.close()
+assert fake.closed and sock.stream is None
+
+= DICOMSocket recv swallows socket errors
+import socket as _stdsocket
+class _TimeoutStream:
+    def recv(self):
+        raise _stdsocket.timeout()
+    def close(self):
+        pass
+
+sock = DICOMSocket("127.0.0.1", 11112, "DEST_AE")
+sock.stream = _TimeoutStream()
+assert sock.recv() is None
+
+= DICOMSocket associate succeeds with mock A-ASSOCIATE-AC
+sock = DICOMSocket("127.0.0.1", 11112, "DEST_AE", src_ae="SCAPY_SCU")
+ts = DICOMVariableItem() / DICOMTransferSyntax(uid=_uid_to_bytes(DEFAULT_TRANSFER_SYNTAX_UID))
+pctx = DICOMVariableItem() / DICOMPresentationContextAC(context_id=1, result=0, sub_items=[ts])
+max_len = DICOMVariableItem() / DICOMMaximumLength(max_pdu_length=4096)
+user_info = DICOMVariableItem() / DICOMUserInformation(sub_items=[max_len])
+ac = DICOM(bytes(DICOM() / A_ASSOCIATE_AC(called_ae_title=b"DEST_AE", calling_ae_title=b"SCAPY_SCU", variable_items=[pctx, user_info])))
+fake = _FakeStream()
+fake.recv_responses.append(ac)
+sock.stream = fake
+sock.sock = _FakeSock()
+assert sock.associate() is True
+assert sock.assoc_established is True
+assert 1 in sock.accepted_contexts
+assert sock.max_pdu_length == 4096
+
+= DICOMSocket associate fails on A-ASSOCIATE-RJ and on no response
+sock = DICOMSocket("127.0.0.1", 11112, "DEST_AE")
+rj = DICOM(bytes(DICOM() / A_ASSOCIATE_RJ(result=1, source=1, reason_diag=1)))
+fake = _FakeStream()
+fake.recv_responses.append(rj)
+sock.stream = fake
+sock.sock = _FakeSock()
+assert sock.associate() is False
+sock2 = DICOMSocket("127.0.0.1", 11112, "DEST_AE")
+sock2.stream = _FakeStream()
+sock2.sock = _FakeSock()
+assert sock2.associate() is False
+
+= DICOMSocket c_echo round-trip with mock response
+sock = DICOMSocket("127.0.0.1", 11112, "DEST_AE")
+sock.assoc_established = True
+sock.accepted_contexts = {1: (VERIFICATION_SOP_CLASS_UID, DEFAULT_TRANSFER_SYNTAX_UID)}
+echo_rsp = bytes(C_ECHO_RSP(message_id_responded=1, status=0x0000))
+pdv = PresentationDataValueItem(context_id=1, data=echo_rsp, is_command=1, is_last=1)
+resp = DICOM(bytes(DICOM() / P_DATA_TF(pdv_items=[pdv])))
+fake = _FakeStream()
+fake.recv_responses.append(resp)
+sock.stream = fake
+sock.sock = _FakeSock()
+assert sock.c_echo() == 0x0000
+
+= DICOMSocket c_echo returns None on missing or empty response
+sock = DICOMSocket("127.0.0.1", 11112, "DEST_AE")
+sock.assoc_established = True
+sock.accepted_contexts = {1: (VERIFICATION_SOP_CLASS_UID, DEFAULT_TRANSFER_SYNTAX_UID)}
+sock.stream = _FakeStream()
+sock.sock = _FakeSock()
+assert sock.c_echo() is None
+sock.stream.recv_responses.append(DICOM(bytes(DICOM() / P_DATA_TF(pdv_items=[]))))
+assert sock.c_echo() is None
+
+= DICOMSocket c_store single-PDU and fragmented transfers
+sock = DICOMSocket("127.0.0.1", 11112, "DEST_AE")
+sock.assoc_established = True
+sock.accepted_contexts = {3: (CT_IMAGE_STORAGE_SOP_CLASS_UID, DEFAULT_TRANSFER_SYNTAX_UID)}
+sock.max_pdu_length = 16384
+store_rsp = bytes(C_STORE_RSP(message_id_responded=1, status=0x0000))
+pdv = PresentationDataValueItem(context_id=3, data=store_rsp, is_command=1, is_last=1)
+resp = DICOM(bytes(DICOM() / P_DATA_TF(pdv_items=[pdv])))
+fake = _FakeStream()
+fake.recv_responses.append(resp)
+sock.stream = fake
+sock.sock = _FakeSock()
+assert sock.c_store(b"X" * 100, CT_IMAGE_STORAGE_SOP_CLASS_UID, "1.2.3.4", DEFAULT_TRANSFER_SYNTAX_UID) == 0x0000
+sock.max_pdu_length = 1024
+fake2 = _FakeStream()
+fake2.recv_responses.append(DICOM(bytes(DICOM() / P_DATA_TF(pdv_items=[pdv]))))
+sock.stream = fake2
+assert sock.c_store(b"Y" * 5000, CT_IMAGE_STORAGE_SOP_CLASS_UID, "1.2.3.4", DEFAULT_TRANSFER_SYNTAX_UID) == 0x0000
+assert len(fake2.sent) > 2
+
+= DICOMSocket c_store returns None on missing response
+sock = DICOMSocket("127.0.0.1", 11112, "DEST_AE")
+sock.assoc_established = True
+sock.accepted_contexts = {3: (CT_IMAGE_STORAGE_SOP_CLASS_UID, DEFAULT_TRANSFER_SYNTAX_UID)}
+sock.stream = _FakeStream()
+sock.sock = _FakeSock()
+assert sock.c_store(b"X" * 10, CT_IMAGE_STORAGE_SOP_CLASS_UID, "1.2.3.4", DEFAULT_TRANSFER_SYNTAX_UID) is None
+
+= DICOMSocket release with mock A-RELEASE-RP
+sock = DICOMSocket("127.0.0.1", 11112, "DEST_AE")
+sock.assoc_established = True
+fake = _FakeStream()
+fake.recv_responses.append(DICOM(bytes(DICOM() / A_RELEASE_RP())))
+sock.stream = fake
+sock.sock = _FakeSock()
+assert sock.release() is True
+sock2 = DICOMSocket("127.0.0.1", 11112, "DEST_AE")
+sock2.assoc_established = True
+sock2.stream = _FakeStream()
+sock2.sock = _FakeSock()
+assert sock2.release() is False
+
+= DICOMSocket _parse_max_pdu_length and _parse_accepted_contexts
+sock = DICOMSocket("127.0.0.1", 11112, "DEST_AE")
+sock._proposed_max_pdu = 16384
+ml = DICOMVariableItem() / DICOMMaximumLength(max_pdu_length=8192)
+ui = DICOMVariableItem() / DICOMUserInformation(sub_items=[ml])
+ac = DICOM(bytes(DICOM() / A_ASSOCIATE_AC(called_ae_title=b"A", calling_ae_title=b"B", variable_items=[ui])))
+sock._parse_max_pdu_length(ac)
+assert sock.max_pdu_length == 8192
+sock._parse_max_pdu_length(DICOM(bytes(DICOM() / A_ASSOCIATE_RJ())))
+assert sock.max_pdu_length == 16384
+sock._proposed_context_map = {1: VERIFICATION_SOP_CLASS_UID}
+ts = DICOMVariableItem() / DICOMTransferSyntax(uid=_uid_to_bytes(DEFAULT_TRANSFER_SYNTAX_UID))
+pctx = DICOMVariableItem() / DICOMPresentationContextAC(context_id=1, result=0, sub_items=[ts])
+ac2 = DICOM(bytes(DICOM() / A_ASSOCIATE_AC(called_ae_title=b"A", calling_ae_title=b"B", variable_items=[pctx])))
+sock._parse_accepted_contexts(ac2)
+assert sock.accepted_contexts[1] == (VERIFICATION_SOP_CLASS_UID, DEFAULT_TRANSFER_SYNTAX_UID)
+rej = DICOMVariableItem() / DICOMPresentationContextAC(context_id=1, result=3, sub_items=[ts])
+ac3 = DICOM(bytes(DICOM() / A_ASSOCIATE_AC(called_ae_title=b"A", calling_ae_title=b"B", variable_items=[rej])))
+sock.accepted_contexts = {}
+sock._parse_accepted_contexts(ac3)
+assert 1 not in sock.accepted_contexts
+
+= DICOMSocket context manager exit
+sock = DICOMSocket("127.0.0.1", 11112, "DEST_AE")
+sock.assoc_established = True
+fake = _FakeStream()
+fake.recv_responses.append(DICOM(bytes(DICOM() / A_RELEASE_RP())))
+sock.stream = fake
+sock.sock = _FakeSock()
+exit_result = sock.__exit__(None, None, None)
+assert exit_result is False
+assert sock.stream is None and sock.assoc_established is False
