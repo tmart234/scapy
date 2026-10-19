@@ -612,6 +612,20 @@ assert 0x51 in types
 assert 0x52 in types
 assert 0x55 in types
 
+= build_user_information with role selection and user identity
+user_info = build_user_information(
+    roles={CT_IMAGE_STORAGE_SOP_CLASS_UID: (0, 1)},
+    user_identity=DICOMUserIdentity(user_identity_type=2, primary_field=b"user",
+                                    secondary_field=b"pass"),
+)
+parsed = DICOMVariableItem(bytes(user_info))
+sub_items = parsed[DICOMUserInformation].sub_items
+assert [item.item_type for item in sub_items] == [0x51, 0x54, 0x58]
+assert sub_items[1].sop_class_uid == _uid_to_bytes(CT_IMAGE_STORAGE_SOP_CLASS_UID)
+assert sub_items[1].scu_role == 0
+assert sub_items[1].scp_role == 1
+assert sub_items[2].secondary_field == b"pass"
+
 = _uid_to_bytes pads odd-length UIDs
 assert len(_uid_to_bytes("1.2.3")) % 2 == 0
 assert _uid_to_bytes("1.2.3.4") == b"1.2.3.4\x00"

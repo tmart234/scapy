@@ -1778,9 +1778,15 @@ def build_presentation_context_rq(context_id: int,
 
 def build_user_information(max_pdu_length: int = 16384,
                            implementation_class_uid: Optional[str] = None,
-                           implementation_version: Optional[Union[str, bytes]] = None
+                           implementation_version: Optional[Union[str, bytes]] = None,
+                           roles: Optional[Dict[str, Tuple[int, int]]] = None,
+                           user_identity: Optional[Packet] = None,
                            ) -> Packet:
-    """Build a User Information item."""
+    """Build a User Information item.
+
+    ``roles`` maps SOP Class UIDs to (scu_role, scp_role) and ``user_identity``
+    is a DICOMUserIdentity sub-item.
+    """
     sub_items = [
         DICOMVariableItem() / DICOMMaximumLength(max_pdu_length=max_pdu_length)
     ]
@@ -1791,6 +1797,16 @@ def build_user_information(max_pdu_length: int = 16384,
             DICOMVariableItem() / DICOMImplementationClassUID(uid=uid)
         )
 
+    if roles:
+        for sop_class_uid, (scu_role, scp_role) in roles.items():
+            sub_items.append(
+                DICOMVariableItem() / DICOMSCPSCURoleSelection(
+                    sop_class_uid=_uid_to_bytes(sop_class_uid),
+                    scu_role=scu_role,
+                    scp_role=scp_role,
+                )
+            )
+
     if implementation_version:
         if isinstance(implementation_version, bytes):
             ver_bytes = implementation_version
@@ -1799,6 +1815,9 @@ def build_user_information(max_pdu_length: int = 16384,
         sub_items.append(
             DICOMVariableItem() / DICOMImplementationVersionName(name=ver_bytes)
         )
+
+    if user_identity is not None:
+        sub_items.append(DICOMVariableItem() / user_identity)
 
     return DICOMVariableItem() / DICOMUserInformation(sub_items=sub_items)
 
