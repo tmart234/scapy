@@ -69,6 +69,7 @@ __all__ = [
     "DICOMApplicationContext",
     "DICOMAsyncOperationsWindow",
     "DICOMElementField",
+    "DICOMGenericItem",
     "DICOMImplementationClassUID",
     "DICOMImplementationVersionName",
     "DICOMMaximumLength",
@@ -135,7 +136,7 @@ __all__ = [
     "parse_dimse_status",
 ]
 
-log = logging.getLogger("scapy.contrib.dicom")
+log_dicom = logging.getLogger("scapy.contrib.dicom")
 
 DICOM_PORT = 104
 DICOM_PORT_ALT = 11112
@@ -1122,26 +1123,6 @@ class DICOMVariableItem(Packet):
             return s[:self.length], s[self.length:]
         return s, b""
 
-    def guess_payload_class(self, payload: bytes) -> type:
-        type_to_class = {
-            0x10: DICOMApplicationContext,
-            0x20: DICOMPresentationContextRQ,
-            0x21: DICOMPresentationContextAC,
-            0x30: DICOMAbstractSyntax,
-            0x40: DICOMTransferSyntax,
-            0x50: DICOMUserInformation,
-            0x51: DICOMMaximumLength,
-            0x52: DICOMImplementationClassUID,
-            0x53: DICOMAsyncOperationsWindow,
-            0x54: DICOMSCPSCURoleSelection,
-            0x55: DICOMImplementationVersionName,
-            0x56: DICOMSOPClassExtendedNegotiation,
-            0x57: DICOMSOPClassCommonExtendedNegotiation,
-            0x58: DICOMUserIdentity,
-            0x59: DICOMUserIdentityResponse,
-        }
-        return type_to_class.get(self.item_type, DICOMGenericItem)
-
     def mysummary(self) -> str:
         return self.sprintf("Item %item_type%")
 
@@ -1880,7 +1861,7 @@ class DICOMSocket:
             self.stream = StreamSocket(self.sock, basecls=DICOM)
             return True
         except (socket.error, socket.timeout, OSError) as e:
-            log.error("Connection failed: %s", e)
+            log_dicom.error("Connection failed: %s", e)
             return False
 
     def send(self, pkt: Packet) -> None:
@@ -1892,7 +1873,7 @@ class DICOMSocket:
         except socket.timeout:
             return None
         except (socket.error, OSError) as e:
-            log.error("Error receiving PDU: %s", e)
+            log_dicom.error("Error receiving PDU: %s", e)
             return None
 
     def sr1(self, *args, **kargs):
@@ -1902,7 +1883,7 @@ class DICOMSocket:
         try:
             return self.stream.sr1(*args, timeout=timeout, **kargs)
         except (socket.error, OSError) as e:
-            log.error("Error in sr1: %s", e)
+            log_dicom.error("Error in sr1: %s", e)
             return None
 
     def send_raw_bytes(self, raw_bytes: bytes) -> None:
@@ -1949,7 +1930,7 @@ class DICOMSocket:
                 self._parse_max_pdu_length(response)
                 return True
             elif response.haslayer(A_ASSOCIATE_RJ):
-                log.error(
+                log_dicom.error(
                     "Association rejected: result=%d, source=%d, reason=%d",
                     response[A_ASSOCIATE_RJ].result,
                     response[A_ASSOCIATE_RJ].source,
@@ -1957,7 +1938,7 @@ class DICOMSocket:
                 )
                 return False
 
-        log.error("Association failed: no valid response received")
+        log_dicom.error("Association failed: no valid response received")
         return False
 
     def _parse_max_pdu_length(self, response: Packet) -> None:
@@ -2027,12 +2008,12 @@ class DICOMSocket:
 
     def c_echo(self) -> Optional[int]:
         if not self.assoc_established:
-            log.error("Association not established")
+            log_dicom.error("Association not established")
             return None
 
         echo_ctx_id = self._find_accepted_context_id(VERIFICATION_SOP_CLASS_UID)
         if echo_ctx_id is None:
-            log.error("No accepted context for Verification SOP Class")
+            log_dicom.error("No accepted context for Verification SOP Class")
             return None
 
         msg_id = self._get_next_message_id()
@@ -2059,7 +2040,7 @@ class DICOMSocket:
                 sop_instance_uid: str, transfer_syntax_uid: str
                 ) -> Optional[int]:
         if not self.assoc_established:
-            log.error("Association not established")
+            log_dicom.error("Association not established")
             return None
 
         store_ctx_id = self._find_accepted_context_id(
@@ -2067,7 +2048,7 @@ class DICOMSocket:
             transfer_syntax_uid,
         )
         if store_ctx_id is None:
-            log.error(
+            log_dicom.error(
                 "No accepted context for SOP %s with TS %s",
                 sop_class_uid,
                 transfer_syntax_uid,

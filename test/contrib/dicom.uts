@@ -191,12 +191,12 @@ assert parsed.item_type == 0x21
 assert parsed.haslayer(DICOMPresentationContextAC)
 assert parsed[DICOMPresentationContextAC].result == 0
 
-= Unknown item type uses guess_payload_class fallback
+= Unknown item type falls back to DICOMGenericItem
 raw = struct.pack("!BBH", 0xFF, 0, 4) + b"test"
 parsed = DICOMVariableItem(raw)
 assert parsed.item_type == 0xFF
 assert parsed.length == 4
-assert parsed.payload is not None
+assert parsed[DICOMGenericItem].data == b"test"
 
 = Non-ASCII UID does not break the summary
 parsed = DICOMVariableItem(struct.pack("!BBH", 0x30, 0, 4) + b"\xff1.2")
