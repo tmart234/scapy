@@ -592,12 +592,12 @@ assert sub_items[0][DICOMMaximumLength].max_pdu_length == 32768
 maximum = DICOMVariableItem() / DICOMMaximumLength(max_pdu_length=0)
 user_info = DICOMVariableItem() / DICOMUserInformation(sub_items=[maximum])
 response = DICOM() / A_ASSOCIATE_AC(variable_items=[user_info])
-client = DICOMSocket("127.0.0.1", 104, "SERVER")
+client = DICOM_Client("127.0.0.1", 104, "SERVER")
 client._parse_max_pdu_length(DICOM(bytes(response)))
 assert client.max_pdu_length == client._proposed_max_pdu
 assert maximum.summary() == "DICOMVariableItem / MaxLength unlimited"
 
-= DICOMSocket association, C-ECHO, C-STORE and release with a peer
+= DICOM_Client association, C-ECHO, C-STORE and release with a peer
 import socket
 import threading
 from scapy.supersocket import StreamSocket
@@ -642,28 +642,28 @@ received = []
 thread = threading.Thread(target=peer_scp, args=(peer, received))
 thread.daemon = True
 thread.start()
-dicom_sock = DICOMSocket("127.0.0.1", 104, "SERVER", read_timeout=5)
-dicom_sock.sock = client
-dicom_sock.stream = StreamSocket(client, basecls=DICOM)
-dicom_sock.accepted_contexts = {5: ("1.2.3", DEFAULT_TRANSFER_SYNTAX_UID)}
+dicom_client = DICOM_Client("127.0.0.1", 104, "SERVER", read_timeout=5)
+dicom_client.sock = client
+dicom_client.stream = StreamSocket(client, basecls=DICOM)
+dicom_client.accepted_contexts = {5: ("1.2.3", DEFAULT_TRANSFER_SYNTAX_UID)}
 contexts = {
     VERIFICATION_SOP_CLASS_UID: [DEFAULT_TRANSFER_SYNTAX_UID],
     CT_IMAGE_STORAGE_SOP_CLASS_UID: [DEFAULT_TRANSFER_SYNTAX_UID],
 }
 try:
-    associated = dicom_sock.associate(contexts)
-    echo_status = dicom_sock.c_echo()
-    store_status = dicom_sock.c_store(b"D" * 3000, CT_IMAGE_STORAGE_SOP_CLASS_UID,
+    associated = dicom_client.associate(contexts)
+    echo_status = dicom_client.c_echo()
+    store_status = dicom_client.c_store(b"D" * 3000, CT_IMAGE_STORAGE_SOP_CLASS_UID,
                                       "1.2.3.4", DEFAULT_TRANSFER_SYNTAX_UID)
-    released = dicom_sock.release()
+    released = dicom_client.release()
 finally:
     thread.join(5)
-    dicom_sock.close()
+    dicom_client.close()
     peer.close()
 
 assert associated
-assert sorted(dicom_sock.accepted_contexts) == [1, 3]
-assert dicom_sock.max_pdu_length == 1025
+assert sorted(dicom_client.accepted_contexts) == [1, 3]
+assert dicom_client.max_pdu_length == 1025
 assert echo_status == 0x0000
 assert store_status == 0xB000
 assert released
@@ -677,12 +677,12 @@ assert all(pdu.length <= 1025 for pdu in data_pdus)
 assert b"".join(pdu[PresentationDataValueItem].data for pdu in data_pdus) == b"D" * 3000
 assert received[-1].haslayer(A_RELEASE_RQ)
 
-= DICOMSocket refuses a too small maximum PDU length
-dicom_sock = DICOMSocket("127.0.0.1", 104, "SERVER")
-dicom_sock.assoc_established = True
-dicom_sock.accepted_contexts = {1: (CT_IMAGE_STORAGE_SOP_CLASS_UID, DEFAULT_TRANSFER_SYNTAX_UID)}
-dicom_sock.max_pdu_length = 7
-assert dicom_sock.c_store(b"D" * 10, CT_IMAGE_STORAGE_SOP_CLASS_UID, "1.2.3",
+= DICOM_Client refuses a too small maximum PDU length
+dicom_client = DICOM_Client("127.0.0.1", 104, "SERVER")
+dicom_client.assoc_established = True
+dicom_client.accepted_contexts = {1: (CT_IMAGE_STORAGE_SOP_CLASS_UID, DEFAULT_TRANSFER_SYNTAX_UID)}
+dicom_client.max_pdu_length = 7
+assert dicom_client.c_store(b"D" * 10, CT_IMAGE_STORAGE_SOP_CLASS_UID, "1.2.3",
                           DEFAULT_TRANSFER_SYNTAX_UID) is None
 
 = build_user_information with implementation info

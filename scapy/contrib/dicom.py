@@ -88,6 +88,7 @@ __all__ = [
     "DICOMUserIdentityResponse",
     "DICOMUserInformation",
     "DICOMVariableItem",
+    "DICOM_Client",
     "DICOM_PORT",
     "DICOM_PORT_ALT",
     "DIMSEPacket",
@@ -1789,8 +1790,8 @@ def build_user_information(max_pdu_length: int = 16384,
     return DICOMVariableItem() / DICOMUserInformation(sub_items=sub_items)
 
 
-class DICOMSocket:
-    """DICOM application-layer socket for associations and DIMSE operations."""
+class DICOM_Client:
+    """DICOM client (SCU) for associations and DIMSE operations."""
 
     def __init__(self, dst_ip: str, dst_port: int, dst_ae: str,
                  src_ae: str = "SCAPY_SCU", read_timeout: int = 10) -> None:
@@ -2106,3 +2107,7 @@ class DICOMSocket:
         self.sock = None
         self.stream = None
         self.assoc_established = False
+
+
+# Old name: DICOMSocket
+DICOMSocket = DICOM_Client
