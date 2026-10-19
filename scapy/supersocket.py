@@ -504,14 +504,14 @@ class StreamSocket(SimpleSocket):
             data = self.ins.recv(x, socket.MSG_PEEK)
             if data == b"":
                 raise EOFError
-            x = len(data)
             pkt = self.rcvcls(self._buf + data, self.metadata, self.streamsession)
             if pkt is None:  # Incomplete packet.
-                self._buf += self.ins.recv(x)
+                self._buf += self.ins.recv(len(data))
             else:
                 break
 
         self.metadata.clear()
+        x = len(data)
         # Strip any madding
         pad = pkt.getlayer(conf.padding_layer)
         if pad is not None and pad.underlayer is not None:
