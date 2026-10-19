@@ -371,6 +371,13 @@ raw = bytes(pkt)
 assert struct.pack("<H", 0x0021) in raw
 assert b'DEST_AE' in raw
 
+= C_MOVE_RQ elements are in ascending tag order
+raw = bytes(C_MOVE_RQ(move_destination=b"DEST_AE"))
+assert raw.index(b"\x00\x00\x00\x06") < raw.index(b"\x00\x00\x00\x07")
+parsed = C_MOVE_RQ(raw)
+assert parsed.move_destination == b"DEST_AE         "
+assert parsed.priority == 0x0002
+
 = C_MOVE_RSP creation with sub-operation counters
 pkt = C_MOVE_RSP(
     message_id_responded=100,
@@ -408,6 +415,34 @@ pdata = DICOM() / P_DATA_TF(pdv_items=[pdv])
 raw = bytes(pdata)
 assert raw[0] == 0x04
 assert b'1.2.840.10008.1.1' in raw
+
+= DIMSE command round-trip with Command Group Length
+raw = bytes(C_ECHO_RSP(message_id_responded=42, status=0x0122))
+assert raw[:8] == b"\x00\x00\x00\x00\x04\x00\x00\x00"
+parsed = C_ECHO_RSP(raw)
+assert parsed.command_group_length == len(raw) - 12
+assert parsed.affected_sop_class_uid == b"1.2.840.10008.1.1\x00"
+assert parsed.command_field == 0x8030
+assert parsed.message_id_responded == 42
+assert parsed.status == 0x0122
+assert bytes(parsed) == raw
+
+= DIMSEPacket dispatches on the Command Field
+for cls in DIMSEPacket.__subclasses__():
+    raw = bytes(cls())
+    parsed = DIMSEPacket(raw)
+    assert isinstance(parsed, cls)
+    assert bytes(parsed) == raw
+
+parsed = DIMSEPacket(bytes(C_GET_RSP(status=0xFF00, num_remaining=3)))
+assert isinstance(parsed, C_GET_RSP)
+assert parsed.num_remaining == 3
+assert type(DIMSEPacket(b"\x00" * 8)) is DIMSEPacket
+
+= parse_dimse_status reads the Status element
+assert parse_dimse_status(bytes(C_STORE_RSP(status=0xA700))) == 0xA700
+assert parse_dimse_status(bytes(C_ECHO_RQ())) is None
+assert parse_dimse_status(b"\x00" * 4) is None
 
 ############
 ############

@@ -16,7 +16,7 @@ import logging
 import socket
 import struct
 import time
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Type, Union
 
 from scapy.compat import Self
 from scapy.error import Scapy_Exception
@@ -193,7 +193,7 @@ class DICOMAETitleField(StrFixedLenField):
         return str(val).rstrip()
 
 
-class DICOMElementField(Field[bytes, bytes]):
+class DICOMElementField(Field[Any, bytes]):
     """DICOM data element field with explicit tag and length encoding."""
 
     __slots__ = ["tag_group", "tag_elem"]
@@ -205,25 +205,32 @@ class DICOMElementField(Field[bytes, bytes]):
         Field.__init__(self, name, default)
 
     def addfield(self, pkt: Optional[Packet], s: bytes, val: Any) -> bytes:
+        # None omits the element (optional or automatically computed)
         if val is None:
-            val = b""
-        if isinstance(val, str):
-            val = val.encode("ascii")
+            return s
+        val = self.i2m(pkt, val)
         hdr = struct.pack("<HHI", self.tag_group, self.tag_elem, len(val))
         return s + hdr + val
 
-    def getfield(self, pkt: Optional[Packet], s: bytes) -> Tuple[bytes, bytes]:
+    def getfield(self, pkt: Optional[Packet], s: bytes) -> Tuple[bytes, Any]:
         if len(s) < 8:
-            return s, b""
+            return s, None
         tag_g, tag_e, length = struct.unpack("<HHI", s[:8])
+        # Another tag means that this element is absent
+        if (tag_g, tag_e) != (self.tag_group, self.tag_elem):
+            return s, None
         # Ensure the buffer contains the full value as declared by the length
         if len(s) < 8 + length:
             raise Scapy_Exception(
                 "Not enough bytes to decode DICOM element value: "
                 f"expected {length} bytes, only {len(s) - 8} available"
             )
-        value = s[8:8 + length]
-        return s[8 + length:], value
+        return s[8 + length:], self.m2i(pkt, s[8:8 + length])
+
+    def i2m(self, pkt: Optional[Packet], val: Any) -> bytes:
+        if isinstance(val, str):
+            return val.encode("ascii")
+        return val
 
     def i2repr(self, pkt: Optional[Packet], val: Any) -> str:
         if isinstance(val, bytes):
@@ -240,9 +247,8 @@ class DICOMElementField(Field[bytes, bytes]):
 class DICOMUIDField(DICOMElementField):
     """DICOM UID element field with automatic even-length padding."""
 
-    def addfield(self, pkt: Optional[Packet], s: bytes, val: Any) -> bytes:
-        val = _uid_to_bytes(val) if val else b""
-        return DICOMElementField.addfield(self, pkt, s, val)
+    def i2m(self, pkt: Optional[Packet], val: Any) -> bytes:
+        return _uid_to_bytes(val)
 
     def i2repr(self, pkt: Optional[Packet], val: Any) -> str:
         if isinstance(val, bytes):
@@ -260,25 +266,24 @@ class DICOMUIDField(DICOMElementField):
 class DICOMUIDFieldRaw(DICOMElementField):
     """DICOM UID element field without automatic padding."""
 
-    def addfield(self, pkt: Optional[Packet], s: bytes, val: Any) -> bytes:
-        val = _uid_to_bytes_raw(val) if val else b""
-        return DICOMElementField.addfield(self, pkt, s, val)
+    def i2m(self, pkt: Optional[Packet], val: Any) -> bytes:
+        return _uid_to_bytes_raw(val)
 
 
 class DICOMUSField(DICOMElementField):
     """DICOM Unsigned Short (US) element field."""
 
-    def addfield(self, pkt: Optional[Packet], s: bytes, val: int) -> bytes:
-        val_bytes = struct.pack("<H", val)
-        return DICOMElementField.addfield(self, pkt, s, val_bytes)
+    def i2m(self, pkt: Optional[Packet], val: Any) -> bytes:
+        return struct.pack("<H", val)
 
-    def getfield(self, pkt: Optional[Packet], s: bytes) -> Tuple[bytes, int]:
-        remain, val_bytes = DICOMElementField.getfield(self, pkt, s)
-        if len(val_bytes) >= 2:
-            return remain, struct.unpack("<H", val_bytes[:2])[0]
-        return remain, 0
+    def m2i(self, pkt: Optional[Packet], val: bytes) -> int:
+        if len(val) >= 2:
+            return struct.unpack("<H", val[:2])[0]
+        return 0
 
     def i2repr(self, pkt: Optional[Packet], val: Any) -> str:
+        if val is None:
+            return repr(val)
         return "0x%04X" % val
 
     def randval(self) -> RandShort:
@@ -288,15 +293,13 @@ class DICOMUSField(DICOMElementField):
 class DICOMULField(DICOMElementField):
     """DICOM Unsigned Long (UL) element field."""
 
-    def addfield(self, pkt: Optional[Packet], s: bytes, val: int) -> bytes:
-        val_bytes = struct.pack("<I", val)
-        return DICOMElementField.addfield(self, pkt, s, val_bytes)
+    def i2m(self, pkt: Optional[Packet], val: Any) -> bytes:
+        return struct.pack("<I", val)
 
-    def getfield(self, pkt: Optional[Packet], s: bytes) -> Tuple[bytes, int]:
-        remain, val_bytes = DICOMElementField.getfield(self, pkt, s)
-        if len(val_bytes) >= 4:
-            return remain, struct.unpack("<I", val_bytes[:4])[0]
-        return remain, 0
+    def m2i(self, pkt: Optional[Packet], val: bytes) -> int:
+        if len(val) >= 4:
+            return struct.unpack("<I", val[:4])[0]
+        return 0
 
     def randval(self) -> RandInt:
         return RandInt()
@@ -305,13 +308,10 @@ class DICOMULField(DICOMElementField):
 class DICOMAEDIMSEField(DICOMElementField):
     """DICOM AE element field for DIMSE - 16 bytes, space-padded."""
 
-    def addfield(self, pkt: Optional[Packet], s: bytes, val: Any) -> bytes:
-        if val is None:
-            val = b""
+    def i2m(self, pkt: Optional[Packet], val: Any) -> bytes:
         if isinstance(val, str):
             val = val.encode("ascii")
-        val = val.ljust(16, b" ")[:16]
-        return DICOMElementField.addfield(self, pkt, s, val)
+        return val.ljust(16, b" ")[:16]
 
     def i2repr(self, pkt: Optional[Packet], val: Any) -> str:
         if isinstance(val, bytes):
@@ -319,16 +319,59 @@ class DICOMAEDIMSEField(DICOMElementField):
         return str(val).strip()
 
 
+def _dimse_us_element(dimse_bytes: bytes, tag_elem: int) -> Optional[int]:
+    """Extract a US element of the command group from DIMSE command bytes."""
+    try:
+        if len(dimse_bytes) < 12:
+            return None
+        cmd_group_len = struct.unpack("<I", dimse_bytes[8:12])[0]
+        offset = 12
+        group_end_offset = offset + cmd_group_len
+        while offset < group_end_offset and offset + 8 <= len(dimse_bytes):
+            tag_group, elem = struct.unpack(
+                "<HH", dimse_bytes[offset:offset + 4]
+            )
+            value_len = struct.unpack(
+                "<I", dimse_bytes[offset + 4:offset + 8]
+            )[0]
+            if (
+                tag_group == 0x0000
+                and elem == tag_elem
+                and value_len == 2
+            ):
+                # Ensure there are at least 2 bytes available for the value
+                if offset + 10 > len(dimse_bytes) or offset + 10 > group_end_offset:
+                    break
+                return struct.unpack(
+                    "<H", dimse_bytes[offset + 8:offset + 10]
+                )[0]
+            offset += 8 + value_len
+    except struct.error:
+        return None
+    return None
+
+
 class DIMSEPacket(Packet):
     """Base class for DIMSE command packets with automatic group length."""
 
-    GROUP_LENGTH_ELEMENT_SIZE = 12
+    fields_desc = [
+        DICOMULField("command_group_length", None, 0x0000, 0x0000),
+    ]
+
+    @classmethod
+    def dispatch_hook(cls, _pkt: Optional[bytes] = None, *args: Any,
+                      **kargs: Any) -> Type[Packet]:
+        # Pick the command class from the Command Field (0000,0100)
+        command_field = _dimse_us_element(_pkt or b"", 0x0100)
+        for command_cls in cls.__subclasses__():
+            if command_cls.command_field.default == command_field:
+                return command_cls
+        return cls
 
     def post_build(self, pkt: bytes, pay: bytes) -> bytes:
-        group_len = len(pkt)
-        header = struct.pack("<HHI", 0x0000, 0x0000, 4)
-        header += struct.pack("<I", group_len)
-        return header + pkt + pay
+        if self.command_group_length is None:
+            pkt = struct.pack("<HHII", 0x0000, 0x0000, 4, len(pkt)) + pkt
+        return pkt + pay
 
 
 DIMSE_COMMAND_FIELDS = {
@@ -375,6 +418,7 @@ class C_ECHO_RQ(DIMSEPacket):
 
     name = "C-ECHO-RQ"
     fields_desc = [
+        DICOMULField("command_group_length", None, 0x0000, 0x0000),
         DICOMUIDField("affected_sop_class_uid",
                       VERIFICATION_SOP_CLASS_UID, 0x0000, 0x0002),
         DICOMUSField("command_field", 0x0030, 0x0000, 0x0100),
@@ -394,6 +438,7 @@ class C_ECHO_RSP(DIMSEPacket):
 
     name = "C-ECHO-RSP"
     fields_desc = [
+        DICOMULField("command_group_length", None, 0x0000, 0x0000),
         DICOMUIDField("affected_sop_class_uid",
                       VERIFICATION_SOP_CLASS_UID, 0x0000, 0x0002),
         DICOMUSField("command_field", 0x8030, 0x0000, 0x0100),
@@ -419,6 +464,7 @@ class C_STORE_RQ(DIMSEPacket):
 
     name = "C-STORE-RQ"
     fields_desc = [
+        DICOMULField("command_group_length", None, 0x0000, 0x0000),
         DICOMUIDField("affected_sop_class_uid",
                       CT_IMAGE_STORAGE_SOP_CLASS_UID, 0x0000, 0x0002),
         DICOMUSField("command_field", 0x0001, 0x0000, 0x0100),
@@ -441,6 +487,7 @@ class C_STORE_RSP(DIMSEPacket):
 
     name = "C-STORE-RSP"
     fields_desc = [
+        DICOMULField("command_group_length", None, 0x0000, 0x0000),
         DICOMUIDField("affected_sop_class_uid",
                       CT_IMAGE_STORAGE_SOP_CLASS_UID, 0x0000, 0x0002),
         DICOMUSField("command_field", 0x8001, 0x0000, 0x0100),
@@ -468,6 +515,7 @@ class C_FIND_RQ(DIMSEPacket):
 
     name = "C-FIND-RQ"
     fields_desc = [
+        DICOMULField("command_group_length", None, 0x0000, 0x0000),
         DICOMUIDField("affected_sop_class_uid",
                       PATIENT_ROOT_QR_FIND_SOP_CLASS_UID, 0x0000, 0x0002),
         DICOMUSField("command_field", 0x0020, 0x0000, 0x0100),
@@ -488,6 +536,7 @@ class C_FIND_RSP(DIMSEPacket):
 
     name = "C-FIND-RSP"
     fields_desc = [
+        DICOMULField("command_group_length", None, 0x0000, 0x0000),
         DICOMUIDField("affected_sop_class_uid",
                       PATIENT_ROOT_QR_FIND_SOP_CLASS_UID, 0x0000, 0x0002),
         DICOMUSField("command_field", 0x8020, 0x0000, 0x0100),
@@ -513,13 +562,14 @@ class C_MOVE_RQ(DIMSEPacket):
 
     name = "C-MOVE-RQ"
     fields_desc = [
+        DICOMULField("command_group_length", None, 0x0000, 0x0000),
         DICOMUIDField("affected_sop_class_uid",
                       PATIENT_ROOT_QR_MOVE_SOP_CLASS_UID, 0x0000, 0x0002),
         DICOMUSField("command_field", 0x0021, 0x0000, 0x0100),
         DICOMUSField("message_id", 1, 0x0000, 0x0110),
+        DICOMAEDIMSEField("move_destination", b"", 0x0000, 0x0600),
         DICOMUSField("priority", 0x0002, 0x0000, 0x0700),
         DICOMUSField("data_set_type", 0x0000, 0x0000, 0x0800),
-        DICOMAEDIMSEField("move_destination", b"", 0x0000, 0x0600),
     ]
 
     def mysummary(self) -> str:
@@ -534,6 +584,7 @@ class C_MOVE_RSP(DIMSEPacket):
 
     name = "C-MOVE-RSP"
     fields_desc = [
+        DICOMULField("command_group_length", None, 0x0000, 0x0000),
         DICOMUIDField("affected_sop_class_uid",
                       PATIENT_ROOT_QR_MOVE_SOP_CLASS_UID, 0x0000, 0x0002),
         DICOMUSField("command_field", 0x8021, 0x0000, 0x0100),
@@ -563,6 +614,7 @@ class C_GET_RQ(DIMSEPacket):
 
     name = "C-GET-RQ"
     fields_desc = [
+        DICOMULField("command_group_length", None, 0x0000, 0x0000),
         DICOMUIDField("affected_sop_class_uid",
                       PATIENT_ROOT_QR_GET_SOP_CLASS_UID, 0x0000, 0x0002),
         DICOMUSField("command_field", 0x0010, 0x0000, 0x0100),
@@ -583,6 +635,7 @@ class C_GET_RSP(DIMSEPacket):
 
     name = "C-GET-RSP"
     fields_desc = [
+        DICOMULField("command_group_length", None, 0x0000, 0x0000),
         DICOMUIDField("affected_sop_class_uid",
                       PATIENT_ROOT_QR_GET_SOP_CLASS_UID, 0x0000, 0x0002),
         DICOMUSField("command_field", 0x8010, 0x0000, 0x0100),
@@ -609,34 +662,7 @@ class C_GET_RSP(DIMSEPacket):
 
 def parse_dimse_status(dimse_bytes: bytes) -> Optional[int]:
     """Extract status code from DIMSE response bytes."""
-    try:
-        if len(dimse_bytes) < 12:
-            return None
-        cmd_group_len = struct.unpack("<I", dimse_bytes[8:12])[0]
-        offset = 12
-        group_end_offset = offset + cmd_group_len
-        while offset < group_end_offset and offset + 8 <= len(dimse_bytes):
-            tag_group, tag_elem = struct.unpack(
-                "<HH", dimse_bytes[offset:offset + 4]
-            )
-            value_len = struct.unpack(
-                "<I", dimse_bytes[offset + 4:offset + 8]
-            )[0]
-            if (
-                tag_group == 0x0000
-                and tag_elem == 0x0900
-                and value_len == 2
-            ):
-                # Ensure there are at least 2 bytes available for the status
-                if offset + 10 > len(dimse_bytes) or offset + 10 > group_end_offset:
-                    break
-                return struct.unpack(
-                    "<H", dimse_bytes[offset + 8:offset + 10]
-                )[0]
-            offset += 8 + value_len
-    except struct.error:
-        return None
-    return None
+    return _dimse_us_element(dimse_bytes, 0x0900)
 
 
 class DICOMGenericItem(Packet):
