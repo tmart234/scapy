@@ -410,13 +410,15 @@ class TCPSession(IPSession):
             if "seq" in metadata:
                 pkt[TCP].seq = metadata["seq"]
             # Clear TCP reassembly metadata
+            relative_seq = metadata["relative_seq"]
             metadata.clear()
             # Check for padding
             padding = self._strip_padding(packet)
             while padding:
                 # There is remaining data for the next payload.
                 full_length = data.content_len - len(padding)
-                metadata["relative_seq"] = relative_seq + full_length
+                relative_seq += full_length
+                metadata["relative_seq"] = relative_seq
                 data.shiftleft(full_length)
                 # There might be a sub-payload hidden in the padding
                 sub_packet = tcp_reassemble(
