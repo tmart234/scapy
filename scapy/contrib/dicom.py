@@ -543,6 +543,7 @@ class C_ECHO_RSP(DIMSEPacket):
         DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
         DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
         DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMElementField("error_comment", None, 0x0000, 0x0902),
     ]
 
     def mysummary(self) -> str:
@@ -595,6 +596,8 @@ class C_STORE_RSP(DIMSEPacket):
         DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
         DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
         DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMATField("offending_element", None, 0x0000, 0x0901),
+        DICOMElementField("error_comment", None, 0x0000, 0x0902),
         DICOMUIDField("affected_sop_instance_uid",
                       "1.2.3.4.5.6.7.8.9", 0x0000, 0x1000),
     ]
@@ -644,6 +647,8 @@ class C_FIND_RSP(DIMSEPacket):
         DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
         DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
         DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMATField("offending_element", None, 0x0000, 0x0901),
+        DICOMElementField("error_comment", None, 0x0000, 0x0902),
     ]
 
     def mysummary(self) -> str:
@@ -692,6 +697,8 @@ class C_MOVE_RSP(DIMSEPacket):
         DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
         DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
         DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMATField("offending_element", None, 0x0000, 0x0901),
+        DICOMElementField("error_comment", None, 0x0000, 0x0902),
         DICOMUSField("num_remaining", 0, 0x0000, 0x1020),
         DICOMUSField("num_completed", 0, 0x0000, 0x1021),
         DICOMUSField("num_failed", 0, 0x0000, 0x1022),
@@ -743,6 +750,8 @@ class C_GET_RSP(DIMSEPacket):
         DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
         DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
         DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMATField("offending_element", None, 0x0000, 0x0901),
+        DICOMElementField("error_comment", None, 0x0000, 0x0902),
         DICOMUSField("num_remaining", 0, 0x0000, 0x1020),
         DICOMUSField("num_completed", 0, 0x0000, 0x1021),
         DICOMUSField("num_failed", 0, 0x0000, 0x1022),
@@ -808,6 +817,8 @@ class N_EVENT_REPORT_RSP(DIMSEPacket):
         DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
         DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
         DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMElementField("error_comment", None, 0x0000, 0x0902),
+        DICOMUSField("error_id", None, 0x0000, 0x0903),
         DICOMUIDField("affected_sop_instance_uid", "", 0x0000, 0x1000),
         DICOMUSField("event_type_id", 0, 0x0000, 0x1002),
     ]
@@ -856,7 +867,10 @@ class N_GET_RSP(DIMSEPacket):
         DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
         DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
         DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMElementField("error_comment", None, 0x0000, 0x0902),
+        DICOMUSField("error_id", None, 0x0000, 0x0903),
         DICOMUIDField("affected_sop_instance_uid", "", 0x0000, 0x1000),
+        DICOMATField("attribute_identifier_list", None, 0x0000, 0x1005),
     ]
 
     def mysummary(self) -> str:
@@ -902,7 +916,10 @@ class N_SET_RSP(DIMSEPacket):
         DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
         DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
         DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMElementField("error_comment", None, 0x0000, 0x0902),
+        DICOMUSField("error_id", None, 0x0000, 0x0903),
         DICOMUIDField("affected_sop_instance_uid", "", 0x0000, 0x1000),
+        DICOMATField("attribute_identifier_list", None, 0x0000, 0x1005),
     ]
 
     def mysummary(self) -> str:
@@ -949,6 +966,8 @@ class N_ACTION_RSP(DIMSEPacket):
         DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
         DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
         DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMElementField("error_comment", None, 0x0000, 0x0902),
+        DICOMUSField("error_id", None, 0x0000, 0x0903),
         DICOMUIDField("affected_sop_instance_uid", "", 0x0000, 0x1000),
         DICOMUSField("action_type_id", 0, 0x0000, 0x1008),
     ]
@@ -996,7 +1015,10 @@ class N_CREATE_RSP(DIMSEPacket):
         DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
         DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
         DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMElementField("error_comment", None, 0x0000, 0x0902),
+        DICOMUSField("error_id", None, 0x0000, 0x0903),
         DICOMUIDField("affected_sop_instance_uid", "", 0x0000, 0x1000),
+        DICOMATField("attribute_identifier_list", None, 0x0000, 0x1005),
     ]
 
     def mysummary(self) -> str:
@@ -1042,6 +1064,8 @@ class N_DELETE_RSP(DIMSEPacket):
         DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
         DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
         DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMElementField("error_comment", None, 0x0000, 0x0902),
+        DICOMUSField("error_id", None, 0x0000, 0x0903),
         DICOMUIDField("affected_sop_instance_uid", "", 0x0000, 0x1000),
     ]
 

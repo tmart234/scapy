@@ -524,6 +524,21 @@ assert rsp.hashret() == rq.hashret()
 for cls in [N_CREATE_RSP, N_DELETE_RSP, N_EVENT_REPORT_RSP, N_GET_RSP]:
     assert cls(bytes(cls(status=0x0112))).status == 0x0112
 
+= DIMSE responses with status-related elements
+raw = bytes(C_STORE_RSP(status=0xA700, error_comment=b"Out of resources",
+                        affected_sop_instance_uid="1.2.3.4"))
+parsed = C_STORE_RSP(raw)
+assert parsed.error_comment == b"Out of resources"
+assert parsed.affected_sop_instance_uid == b"1.2.3.4\x00"
+assert not parsed.payload
+raw = bytes(C_FIND_RSP(status=0xC000, offending_element=[(0x0008, 0x0052)]))
+assert C_FIND_RSP(raw).offending_element == [(0x0008, 0x0052)]
+raw = bytes(N_SET_RSP(status=0x0107, error_id=3, attribute_identifier_list=[(0x0010, 0x0010)]))
+parsed = N_SET_RSP(raw)
+assert parsed.error_id == 3
+assert parsed.attribute_identifier_list == [(0x0010, 0x0010)]
+assert not parsed.payload
+
 = N_GET_RQ Attribute Identifier List
 pkt = N_GET_RQ(attribute_identifier_list=[(0x0010, 0x0010), (0x0010, 0x0020)])
 raw = bytes(pkt)
