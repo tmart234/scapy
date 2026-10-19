@@ -636,6 +636,7 @@ thread.start()
 dicom_sock = DICOMSocket("127.0.0.1", 104, "SERVER", read_timeout=5)
 dicom_sock.sock = client
 dicom_sock.stream = StreamSocket(client, basecls=DICOM)
+dicom_sock.accepted_contexts = {5: ("1.2.3", DEFAULT_TRANSFER_SYNTAX_UID)}
 contexts = {
     VERIFICATION_SOP_CLASS_UID: [DEFAULT_TRANSFER_SYNTAX_UID],
     CT_IMAGE_STORAGE_SOP_CLASS_UID: [DEFAULT_TRANSFER_SYNTAX_UID],
@@ -652,6 +653,7 @@ finally:
     peer.close()
 
 assert associated
+assert sorted(dicom_sock.accepted_contexts) == [1, 3]
 assert dicom_sock.max_pdu_length == 1024
 assert echo_status == 0x0000
 assert store_status == 0xB000
@@ -661,9 +663,18 @@ assert isinstance(DIMSEPacket(received[1][PresentationDataValueItem].data), C_EC
 assert isinstance(DIMSEPacket(received[2][PresentationDataValueItem].data), C_STORE_RQ)
 data_pdus = received[3:-1]
 assert len(data_pdus) == 3
+assert [len(pdu[PresentationDataValueItem].data) for pdu in data_pdus] == [1018, 1018, 964]
 assert all(pdu.length <= 1024 for pdu in data_pdus)
 assert b"".join(pdu[PresentationDataValueItem].data for pdu in data_pdus) == b"D" * 3000
 assert received[-1].haslayer(A_RELEASE_RQ)
+
+= DICOMSocket refuses a too small maximum PDU length
+dicom_sock = DICOMSocket("127.0.0.1", 104, "SERVER")
+dicom_sock.assoc_established = True
+dicom_sock.accepted_contexts = {1: (CT_IMAGE_STORAGE_SOP_CLASS_UID, DEFAULT_TRANSFER_SYNTAX_UID)}
+dicom_sock.max_pdu_length = 7
+assert dicom_sock.c_store(b"D" * 10, CT_IMAGE_STORAGE_SOP_CLASS_UID, "1.2.3",
+                          DEFAULT_TRANSFER_SYNTAX_UID) is None
 
 = build_user_information with implementation info
 user_info = build_user_information(
@@ -693,6 +704,12 @@ assert sub_items[1].sop_class_uid == b"1.2.840.10008.5.1.4.1.1.2"
 assert sub_items[1].scu_role == 0
 assert sub_items[1].scp_role == 1
 assert sub_items[2].secondary_field == b"pass"
+
+= User Information with a role selection per presentation context
+roles = {"1.2.840.10008.5.1.4.1.1.%d" % i: (0, 1) for i in range(120)}
+parsed = DICOMVariableItem(bytes(build_user_information(roles=roles)))
+assert len(parsed[DICOMUserInformation].sub_items) == 121
+assert parsed[DICOMUserInformation].sub_items[-1].scp_role == 1
 
 = _uid_to_bytes pads odd-length UIDs
 assert len(_uid_to_bytes("1.2.3")) % 2 == 0

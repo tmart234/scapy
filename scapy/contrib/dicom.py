@@ -1469,7 +1469,7 @@ class DICOMUserInformation(Packet):
         PacketListField(
             "sub_items", [],
             DICOMVariableItem,
-            max_count=32,
+            max_count=256,
             length_from=lambda pkt: (
                 pkt.underlayer.length
                 if pkt.underlayer and pkt.underlayer.length
@@ -1900,6 +1900,7 @@ class DICOMSocket:
             }
 
         self._proposed_context_map = {}
+        self.accepted_contexts = {}
 
         variable_items: List[Packet] = [
             DICOMVariableItem() / DICOMApplicationContext()
@@ -2055,6 +2056,13 @@ class DICOMSocket:
             )
             return None
 
+        # Fragments have an even length (PS3.8 Annex E) and the PDV item
+        # header takes 6 bytes of the negotiated maximum PDU length
+        max_pdv_data = (self.max_pdu_length - 6) & ~1
+        if max_pdv_data < 2:
+            log_dicom.error("Maximum PDU length too small: %d", self.max_pdu_length)
+            return None
+
         msg_id = self._get_next_message_id()
 
         dimse_rq = bytes(C_STORE_RQ(
@@ -2071,8 +2079,6 @@ class DICOMSocket:
         )
         pdata_cmd = DICOM() / P_DATA_TF(pdv_items=[cmd_pdv])
         self.send(pdata_cmd)
-
-        max_pdv_data = self.max_pdu_length - 12
 
         if len(dataset_bytes) <= max_pdv_data:
             data_pdv = PresentationDataValueItem(
