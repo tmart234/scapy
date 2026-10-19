@@ -685,6 +685,254 @@ dicom_client.max_pdu_length = 7
 assert dicom_client.c_store(b"D" * 10, CT_IMAGE_STORAGE_SOP_CLASS_UID, "1.2.3",
                           DEFAULT_TRANSFER_SYNTAX_UID) is None
 
+############
+############
++ DICOM_Server
+
+= DICOM_Server negotiates the presentation contexts and the roles
+def associate_rq(called_ae_title="SCAPY_SCP", app_context=APP_CONTEXT_UID,
+                 protocol_version=1):
+    return DICOM(bytes(DICOM() / A_ASSOCIATE_RQ(
+        protocol_version=protocol_version,
+        called_ae_title=called_ae_title,
+        calling_ae_title="SCU",
+        variable_items=[
+            DICOMVariableItem() / DICOMApplicationContext(uid=app_context),
+            build_presentation_context_rq(1, VERIFICATION_SOP_CLASS_UID,
+                                          [EXPLICIT_VR_LITTLE_ENDIAN_UID,
+                                           DEFAULT_TRANSFER_SYNTAX_UID]),
+            build_presentation_context_rq(3, CT_IMAGE_STORAGE_SOP_CLASS_UID,
+                                          [JPEG_BASELINE_UID]),
+            build_presentation_context_rq(5, PATIENT_ROOT_QR_FIND_SOP_CLASS_UID,
+                                          [DEFAULT_TRANSFER_SYNTAX_UID]),
+            build_user_information(roles={CT_IMAGE_STORAGE_SOP_CLASS_UID: (1, 1)}),
+        ],
+    )))
+
+server = DICOM_Server()
+ac = DICOM(bytes(server.make_reply(associate_rq())))
+assert server.assoc_established
+assert ac.called_ae_title == b"SCAPY_SCP       "
+assert ac.calling_ae_title == b"SCU             "
+contexts = [item for item in ac.variable_items if item.item_type == 0x21]
+assert [(item.context_id, item.result) for item in contexts] == [(1, 0), (3, 4), (5, 3)]
+assert contexts[0].sub_items[0].uid == DEFAULT_TRANSFER_SYNTAX_UID.encode()
+assert server.accepted_contexts == {
+    1: (VERIFICATION_SOP_CLASS_UID, DEFAULT_TRANSFER_SYNTAX_UID)
+}
+sub_items = ac[DICOMUserInformation].sub_items
+assert sub_items[0].max_pdu_length == 16384
+assert sub_items[1].uid == DICOM_IMPLEMENTATION_CLASS_UID.encode()
+# The requestor may be SCU, but not SCP, unless accepted
+assert (sub_items[2].scu_role, sub_items[2].scp_role) == (1, 0)
+server = DICOM_Server(roles={CT_IMAGE_STORAGE_SOP_CLASS_UID: (1, 1)})
+ac = server.make_reply(associate_rq())
+role = ac[DICOMUserInformation].sub_items[2]
+assert (role.scu_role, role.scp_role) == (1, 1)
+
+= DICOM_Server rejects associations
+server = DICOM_Server(ae_title="SCAPY_SCP")
+for request, rejection in [
+    (associate_rq(called_ae_title="OTHER"), (1, 1, 7)),
+    (associate_rq(app_context="1.2.3"), (1, 1, 2)),
+    (associate_rq(protocol_version=2), (1, 2, 2)),
+]:
+    rj = server.make_reply(request)[A_ASSOCIATE_RJ]
+    assert (rj.result, rj.source, rj.reason_diag) == rejection
+    assert not server.assoc_established
+
+= DICOM_Server aborts on unexpected PDUs
+def p_data(context_id, command):
+    pdv = PresentationDataValueItem(context_id=context_id, data=bytes(command),
+                                    is_command=1, is_last=1)
+    return DICOM(bytes(DICOM() / P_DATA_TF(pdv_items=[pdv])))
+
+server = DICOM_Server()
+# Before the association: A-ABORT from the service-user (AA-1)
+abort = server.make_reply(p_data(1, C_ECHO_RQ()))[A_ABORT]
+assert (abort.source, abort.reason_diag) == (0, 0)
+assert server.make_reply(DICOM(bytes(DICOM() / A_ABORT()))) is None
+for pdu, reason in [
+    (DICOM(b"\x09\x00\x00\x00\x00\x02\x00\x00"), 1),
+    (associate_rq(), 2),
+    (p_data(3, C_ECHO_RQ()), 6),
+    (p_data(1, bytes(C_ECHO_RQ(message_id=1))[:-1]), 6),
+]:
+    ac = server.make_reply(associate_rq())
+    abort = server.make_reply(pdu)[A_ABORT]
+    assert (abort.source, abort.reason_diag) == (2, reason)
+    assert not server.assoc_established
+
+= DICOM_Client and DICOM_Server on a socket pair
+import socket
+import threading
+from scapy.supersocket import StreamSocket
+
+stored = []
+def store_handler(request, transfer_syntax_uid, dataset):
+    stored.append((request.affected_sop_instance_uid, transfer_syntax_uid, dataset))
+    return 0xB000
+
+client, peer = socket.socketpair()
+client.settimeout(5)
+server = DICOM_Server(ae_title="SCAPY_SCP", store_handler=store_handler,
+                      max_pdu_length=1025, read_timeout=5)
+thread = threading.Thread(target=server.handle, args=(peer,))
+thread.daemon = True
+thread.start()
+dicom_client = DICOM_Client("127.0.0.1", 104, "SCAPY_SCP", read_timeout=5)
+dicom_client.sock = client
+dicom_client.stream = StreamSocket(client, basecls=DICOM)
+try:
+    associated = dicom_client.associate({
+        VERIFICATION_SOP_CLASS_UID: [DEFAULT_TRANSFER_SYNTAX_UID],
+        CT_IMAGE_STORAGE_SOP_CLASS_UID: [DEFAULT_TRANSFER_SYNTAX_UID],
+    })
+    echo_status = dicom_client.c_echo()
+    store_status = dicom_client.c_store(b"D" * 3000, CT_IMAGE_STORAGE_SOP_CLASS_UID,
+                                        "1.2.3.4", DEFAULT_TRANSFER_SYNTAX_UID)
+    # Requests without SCP get the status Unrecognized operation
+    find_rq = PresentationDataValueItem(context_id=1, is_command=1, is_last=1,
+                                        data=bytes(C_FIND_RQ(message_id=9)))
+    identifier = PresentationDataValueItem(context_id=1, data=b"I" * 10, is_last=1)
+    find_rsp = dicom_client.sr1(DICOM() / P_DATA_TF(pdv_items=[find_rq, identifier]))
+    released = dicom_client.release()
+finally:
+    thread.join(5)
+    dicom_client.close()
+
+assert associated
+assert dicom_client.max_pdu_length == 1025
+assert echo_status == 0x0000
+assert store_status == 0xB000
+assert stored == [(b"1.2.3.4\x00", DEFAULT_TRANSFER_SYNTAX_UID, b"D" * 3000)]
+command = DIMSEPacket(find_rsp[PresentationDataValueItem].data)
+assert isinstance(command, C_FIND_RSP)
+assert (command.message_id_responded, command.status) == (9, 0x0211)
+assert released
+assert not thread.is_alive()
+
+= DICOM_Server sends the PDUs of its hooks, even incorrect ones
+class RogueServer(DICOM_Server):
+    def negotiate(self, pdu):
+        # Maximum Length sub-item of 6 bytes instead of 4
+        ac = super(RogueServer, self).negotiate(pdu)
+        ac[DICOMUserInformation].sub_items[0] = (
+            DICOMVariableItem() / DICOMMaximumLength(max_pdu_length=1024)
+            / Raw(b"\x00\x00")
+        )
+        return ac
+    def dimse_reply(self, request, context_id, dataset):
+        # No C-ECHO-RSP
+        return None
+
+client, peer = socket.socketpair()
+client.settimeout(5)
+thread = threading.Thread(target=RogueServer(read_timeout=5).handle, args=(peer,))
+thread.daemon = True
+thread.start()
+dicom_client = DICOM_Client("127.0.0.1", 104, "SCAPY_SCP", read_timeout=1)
+dicom_client.sock = client
+dicom_client.stream = StreamSocket(client, basecls=DICOM)
+try:
+    associated = dicom_client.associate()
+    echo_status = dicom_client.c_echo()
+    # Raw bytes reach the server as they are: unknown PDU type
+    dicom_client.send_raw_bytes(b"\x09\x00\x00\x00\x00\x00")
+    abort = dicom_client.recv()
+finally:
+    dicom_client.close()
+    thread.join(5)
+
+assert not thread.is_alive()
+assert associated
+assert dicom_client.max_pdu_length == 1024
+assert echo_status is None
+assert abort[A_ABORT].reason_diag == 1
+
+= DICOM_Server as Storage SCU of a C-GET, DICOM_Client as Storage SCP
+class GetServer(DICOM_Server):
+    def dimse_reply(self, request, context_id, dataset):
+        if not isinstance(request, C_GET_RQ):
+            return super(GetServer, self).dimse_reply(request, context_id, dataset)
+        # C-STORE sub-operation on the context of the Storage SOP Class
+        store_rq = C_STORE_RQ(affected_sop_class_uid=CT_IMAGE_STORAGE_SOP_CLASS_UID,
+                              affected_sop_instance_uid="1.2.3.5", message_id=1)
+        self.stream.send(p_data(3, store_rq))
+        pdv = PresentationDataValueItem(context_id=3, data=b"G" * 10, is_last=1)
+        self.stream.send(DICOM() / P_DATA_TF(pdv_items=[pdv]))
+        store_rsp = DIMSEPacket(self.stream.recv()[PresentationDataValueItem].data)
+        return C_GET_RSP(affected_sop_class_uid=request.affected_sop_class_uid,
+                         message_id_responded=request.message_id,
+                         num_remaining=0, num_completed=1, num_failed=0,
+                         num_warning=0, status=store_rsp.status)
+
+client, peer = socket.socketpair()
+client.settimeout(5)
+server = GetServer(
+    supported_contexts={
+        PATIENT_ROOT_QR_GET_SOP_CLASS_UID: [DEFAULT_TRANSFER_SYNTAX_UID],
+        CT_IMAGE_STORAGE_SOP_CLASS_UID: [DEFAULT_TRANSFER_SYNTAX_UID],
+    },
+    roles={CT_IMAGE_STORAGE_SOP_CLASS_UID: (0, 1)},
+    read_timeout=5,
+)
+thread = threading.Thread(target=server.handle, args=(peer,))
+thread.daemon = True
+thread.start()
+dicom_client = DICOM_Client("127.0.0.1", 104, "SCAPY_SCP", read_timeout=5)
+dicom_client.sock = client
+dicom_client.stream = StreamSocket(client, basecls=DICOM)
+try:
+    associated = dicom_client.associate(
+        {
+            PATIENT_ROOT_QR_GET_SOP_CLASS_UID: [DEFAULT_TRANSFER_SYNTAX_UID],
+            CT_IMAGE_STORAGE_SOP_CLASS_UID: [DEFAULT_TRANSFER_SYNTAX_UID],
+        },
+        roles={CT_IMAGE_STORAGE_SOP_CLASS_UID: (0, 1)},
+    )
+    get_rq = C_GET_RQ(affected_sop_class_uid=PATIENT_ROOT_QR_GET_SOP_CLASS_UID,
+                      message_id=7)
+    dicom_client.send(p_data(1, get_rq))
+    pdv = PresentationDataValueItem(context_id=1, data=b"Q" * 10, is_last=1)
+    dicom_client.send(DICOM() / P_DATA_TF(pdv_items=[pdv]))
+    store_rq = DIMSEPacket(dicom_client.recv()[PresentationDataValueItem].data)
+    store_data = dicom_client.recv()[PresentationDataValueItem].data
+    store_rsp = C_STORE_RSP(affected_sop_class_uid=store_rq.affected_sop_class_uid,
+                            affected_sop_instance_uid=store_rq.affected_sop_instance_uid,
+                            message_id_responded=store_rq.message_id)
+    dicom_client.send(p_data(3, store_rsp))
+    get_rsp = DIMSEPacket(dicom_client.recv()[PresentationDataValueItem].data)
+    released = dicom_client.release()
+finally:
+    thread.join(5)
+    dicom_client.close()
+
+assert associated
+assert isinstance(store_rq, C_STORE_RQ)
+assert store_data == b"G" * 10
+assert isinstance(get_rsp, C_GET_RSP)
+assert (get_rsp.message_id_responded, get_rsp.num_completed, get_rsp.status) == (7, 1, 0)
+assert released
+
+= DICOM_Server.spawn on the loopback interface
+server_socket = DICOM_Server.spawn(port=0, iface=conf.loopback_name, bg=True,
+                                   ae_title="SCAPY_SCP")
+host, port = server_socket.getsockname()
+try:
+    with DICOM_Client(host, port, "SCAPY_SCP", read_timeout=5) as dicom_client:
+        associated = dicom_client.associate()
+        echo_status = dicom_client.c_echo()
+finally:
+    try:
+        server_socket.shutdown(socket.SHUT_RDWR)
+    except OSError:
+        pass
+    server_socket.close()
+
+assert associated
+assert echo_status == 0x0000
+
 = build_user_information with implementation info
 user_info = build_user_information(
     max_pdu_length=16384,
