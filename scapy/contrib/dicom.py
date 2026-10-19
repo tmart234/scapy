@@ -24,7 +24,6 @@ from scapy.fields import (
     BitField,
     ByteEnumField,
     ByteField,
-    ConditionalField,
     Field,
     FieldLenField,
     IntField,
@@ -1425,16 +1424,11 @@ class DICOMUserIdentity(Packet):
                       length_of="primary_field", fmt="!H"),
         StrLenField("primary_field", b"",
                     length_from=lambda pkt: pkt.primary_field_length),
-        ConditionalField(
-            FieldLenField("secondary_field_length", None,
-                          length_of="secondary_field", fmt="!H"),
-            lambda pkt: pkt.user_identity_type == 2
-        ),
-        ConditionalField(
-            StrLenField("secondary_field", b"",
-                        length_from=lambda pkt: pkt.secondary_field_length),
-            lambda pkt: pkt.user_identity_type == 2
-        ),
+        # Always present, only non-empty for Username and Passcode
+        FieldLenField("secondary_field_length", None,
+                      length_of="secondary_field", fmt="!H"),
+        StrLenField("secondary_field", b"",
+                    length_from=lambda pkt: pkt.secondary_field_length),
     ]
 
     def extract_padding(self, s: bytes) -> Tuple[bytes, bytes]:

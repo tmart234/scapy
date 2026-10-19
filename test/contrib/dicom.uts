@@ -647,6 +647,8 @@ parsed = DICOMVariableItem(raw)
 assert parsed.haslayer(DICOMUserIdentity)
 assert parsed[DICOMUserIdentity].user_identity_type == 1
 assert parsed[DICOMUserIdentity].primary_field == b"admin"
+assert parsed[DICOMUserIdentity].secondary_field_length == 0
+assert raw.endswith(b"admin\x00\x00")
 
 = User Identity username+password (type 2)
 pkt = DICOMVariableItem() / DICOMUserIdentity(
