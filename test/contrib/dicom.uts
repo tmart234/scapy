@@ -686,6 +686,48 @@ payload, remaining = pkt.extract_padding(b'0123456789EXTRA')
 assert payload == b'0123456789'
 assert remaining == b'EXTRA'
 
+= DICOM tcp_reassemble waits for the full PDU
+raw = bytes(DICOM() / A_RELEASE_RQ())
+assert DICOM.tcp_reassemble(raw[:5], {}, {}) is None
+assert DICOM.tcp_reassemble(raw[:-1], {}, {}) is None
+assert DICOM.tcp_reassemble(raw, {}, {}).haslayer(A_RELEASE_RQ)
+
+= StreamSocket reassembles PDUs spanning several reads
+import socket
+from scapy.supersocket import StreamSocket
+pdv = PresentationDataValueItem(context_id=1, data=b"A" * 100, is_last=1)
+client, peer = socket.socketpair()
+peer.sendall(bytes(DICOM() / P_DATA_TF(pdv_items=[pdv])) + bytes(DICOM() / A_RELEASE_RQ()))
+stream = StreamSocket(client, basecls=DICOM)
+try:
+    first = stream.recv(16)
+    second = stream.recv(16)
+finally:
+    stream.close()
+    peer.close()
+
+assert first[PresentationDataValueItem].data == b"A" * 100
+assert second.haslayer(A_RELEASE_RQ)
+
+= TCPSession reassembles PDUs from TCP segments
+from scapy.layers.inet import IP, TCP
+from scapy.sessions import TCPSession
+pdv = PresentationDataValueItem(context_id=1, data=bytes(C_ECHO_RQ(message_id=9)),
+                                is_command=1, is_last=1)
+data = bytes(DICOM() / A_RELEASE_RQ()) + bytes(DICOM() / P_DATA_TF(pdv_items=[pdv]))
+segments = [
+    IP(src="192.0.2.1", dst="192.0.2.2")
+    / TCP(sport=40000, dport=104, flags="PA", seq=1 + i)
+    / data[i:i + 20]
+    for i in range(0, len(data), 20)
+]
+pdus = [pkt[DICOM] for pkt in sniff(offline=segments, session=TCPSession) if DICOM in pkt]
+assert len(pdus) == 2
+assert pdus[0].haslayer(A_RELEASE_RQ)
+command = DIMSEPacket(pdus[1][PresentationDataValueItem].data)
+assert isinstance(command, C_ECHO_RQ)
+assert command.message_id == 9
+
 ############
 ############
 + TCP layer binding

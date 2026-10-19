@@ -1482,6 +1482,16 @@ class DICOM(Packet):
             return s[:self.length], s[self.length:]
         return s, b""
 
+    @classmethod
+    def tcp_reassemble(cls, data: bytes, metadata: Dict[str, Any],
+                       session: Dict[str, Any]) -> Optional[Packet]:
+        if len(data) < 6:
+            return None
+        length = struct.unpack("!I", data[2:6])[0] + 6
+        if len(data) >= length:
+            return cls(data)
+        return None
+
     def mysummary(self) -> str:
         return self.sprintf("DICOM %pdu_type%")
 
