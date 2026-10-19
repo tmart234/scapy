@@ -1128,7 +1128,7 @@ class DICOMApplicationContext(Packet):
     name = "DICOM Application Context"
     fields_desc = [
         StrLenField(
-            "uid", _uid_to_bytes(APP_CONTEXT_UID),
+            "uid", _uid_to_bytes_raw(APP_CONTEXT_UID),
             length_from=lambda pkt: (
                 pkt.underlayer.length
                 if pkt.underlayer and pkt.underlayer.length
@@ -1172,7 +1172,7 @@ class DICOMTransferSyntax(Packet):
     name = "DICOM Transfer Syntax"
     fields_desc = [
         StrLenField(
-            "uid", _uid_to_bytes(DEFAULT_TRANSFER_SYNTAX_UID),
+            "uid", _uid_to_bytes_raw(DEFAULT_TRANSFER_SYNTAX_UID),
             length_from=lambda pkt: (
                 pkt.underlayer.length
                 if pkt.underlayer and pkt.underlayer.length
@@ -1756,12 +1756,12 @@ def build_presentation_context_rq(context_id: int,
                                   abstract_syntax_uid: str,
                                   transfer_syntax_uids: List[str]) -> Packet:
     """Build a Presentation Context RQ item."""
-    abs_uid = _uid_to_bytes(abstract_syntax_uid)
+    abs_uid = _uid_to_bytes_raw(abstract_syntax_uid)
     abs_syn = DICOMVariableItem() / DICOMAbstractSyntax(uid=abs_uid)
 
     sub_items = [abs_syn]
     for ts_uid in transfer_syntax_uids:
-        ts = DICOMVariableItem() / DICOMTransferSyntax(uid=_uid_to_bytes(ts_uid))
+        ts = DICOMVariableItem() / DICOMTransferSyntax(uid=_uid_to_bytes_raw(ts_uid))
         sub_items.append(ts)
 
     return DICOMVariableItem() / DICOMPresentationContextRQ(
@@ -1786,7 +1786,7 @@ def build_user_information(max_pdu_length: int = 16384,
     ]
 
     if implementation_class_uid:
-        uid = _uid_to_bytes(implementation_class_uid)
+        uid = _uid_to_bytes_raw(implementation_class_uid)
         sub_items.append(
             DICOMVariableItem() / DICOMImplementationClassUID(uid=uid)
         )
@@ -1795,7 +1795,7 @@ def build_user_information(max_pdu_length: int = 16384,
         for sop_class_uid, (scu_role, scp_role) in roles.items():
             sub_items.append(
                 DICOMVariableItem() / DICOMSCPSCURoleSelection(
-                    sop_class_uid=_uid_to_bytes(sop_class_uid),
+                    sop_class_uid=_uid_to_bytes_raw(sop_class_uid),
                     scu_role=scu_role,
                     scp_role=scp_role,
                 )

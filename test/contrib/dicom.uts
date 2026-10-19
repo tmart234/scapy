@@ -555,6 +555,15 @@ assert len(sub_items) == 2
 assert sub_items[0].item_type == 0x30
 assert sub_items[1].item_type == 0x40
 
+= UIDs in association items are not padded
+pctx = build_presentation_context_rq(1, VERIFICATION_SOP_CLASS_UID, [DEFAULT_TRANSFER_SYNTAX_UID])
+sub_items = DICOMVariableItem(bytes(pctx))[DICOMPresentationContextRQ].sub_items
+assert sub_items[0].uid == b"1.2.840.10008.1.1"
+assert sub_items[1].uid == b"1.2.840.10008.1.2"
+assert DICOMApplicationContext().uid == b"1.2.840.10008.3.1.1.1"
+user_info = build_user_information(implementation_class_uid="1.2.3")
+assert user_info[DICOMImplementationClassUID].uid == b"1.2.3"
+
 = build_user_information creates proper structure
 user_info = build_user_information(max_pdu_length=32768)
 assert user_info.item_type == 0x50
@@ -621,7 +630,7 @@ user_info = build_user_information(
 parsed = DICOMVariableItem(bytes(user_info))
 sub_items = parsed[DICOMUserInformation].sub_items
 assert [item.item_type for item in sub_items] == [0x51, 0x54, 0x58]
-assert sub_items[1].sop_class_uid == _uid_to_bytes(CT_IMAGE_STORAGE_SOP_CLASS_UID)
+assert sub_items[1].sop_class_uid == b"1.2.840.10008.5.1.4.1.1.2"
 assert sub_items[1].scu_role == 0
 assert sub_items[1].scp_role == 1
 assert sub_items[2].secondary_field == b"pass"
