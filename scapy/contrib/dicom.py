@@ -18,7 +18,7 @@ import struct
 import time
 from typing import Any, Dict, List, Optional, Tuple, Type, Union
 
-from scapy.compat import Self
+from scapy.compat import Self, plain_str
 from scapy.error import Scapy_Exception
 from scapy.fields import (
     BitField,
@@ -29,6 +29,7 @@ from scapy.fields import (
     FieldLenField,
     IntField,
     LenField,
+    MultiEnumField,
     PacketListField,
     ShortField,
     StrFixedLenField,
@@ -60,6 +61,7 @@ __all__ = [
     "C_STORE_RQ",
     "C_STORE_RSP",
     "DEFAULT_TRANSFER_SYNTAX_UID",
+    "DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN_UID",
     "DICOM",
     "DICOMAEDIMSEField",
     "DICOMAETitleField",
@@ -90,6 +92,20 @@ __all__ = [
     "DICOM_PORT_ALT",
     "DIMSEPacket",
     "DIMSE_STATUS_CODES",
+    "EXPLICIT_VR_BIG_ENDIAN_UID",
+    "EXPLICIT_VR_LITTLE_ENDIAN_UID",
+    "HTJ2K_LOSSLESS_RPCL_UID",
+    "HTJ2K_LOSSLESS_UID",
+    "HTJ2K_UID",
+    "IMPLICIT_VR_LITTLE_ENDIAN_UID",
+    "JPEG_2000_LOSSLESS_UID",
+    "JPEG_2000_UID",
+    "JPEG_BASELINE_UID",
+    "JPEG_LOSSLESS_UID",
+    "JPEG_LS_LOSSLESS_UID",
+    "JPEG_LS_LOSSY_UID",
+    "MODALITY_WORKLIST_FIND_SOP_CLASS_UID",
+    "MR_IMAGE_STORAGE_SOP_CLASS_UID",
     "N_ACTION_RQ",
     "N_ACTION_RSP",
     "N_CREATE_RQ",
@@ -107,6 +123,8 @@ __all__ = [
     "PATIENT_ROOT_QR_MOVE_SOP_CLASS_UID",
     "P_DATA_TF",
     "PresentationDataValueItem",
+    "RLE_LOSSLESS_UID",
+    "SECONDARY_CAPTURE_SOP_CLASS_UID",
     "STUDY_ROOT_QR_FIND_SOP_CLASS_UID",
     "STUDY_ROOT_QR_GET_SOP_CLASS_UID",
     "STUDY_ROOT_QR_MOVE_SOP_CLASS_UID",
@@ -126,6 +144,24 @@ APP_CONTEXT_UID = "1.2.840.10008.3.1.1.1"
 DEFAULT_TRANSFER_SYNTAX_UID = "1.2.840.10008.1.2"
 VERIFICATION_SOP_CLASS_UID = "1.2.840.10008.1.1"
 CT_IMAGE_STORAGE_SOP_CLASS_UID = "1.2.840.10008.5.1.4.1.1.2"
+MR_IMAGE_STORAGE_SOP_CLASS_UID = "1.2.840.10008.5.1.4.1.1.4"
+SECONDARY_CAPTURE_SOP_CLASS_UID = "1.2.840.10008.5.1.4.1.1.7"
+
+# Transfer Syntax UIDs (PS3.5 Annex A)
+IMPLICIT_VR_LITTLE_ENDIAN_UID = DEFAULT_TRANSFER_SYNTAX_UID
+EXPLICIT_VR_LITTLE_ENDIAN_UID = "1.2.840.10008.1.2.1"
+DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN_UID = "1.2.840.10008.1.2.1.99"
+EXPLICIT_VR_BIG_ENDIAN_UID = "1.2.840.10008.1.2.2"
+JPEG_BASELINE_UID = "1.2.840.10008.1.2.4.50"
+JPEG_LOSSLESS_UID = "1.2.840.10008.1.2.4.70"
+JPEG_LS_LOSSLESS_UID = "1.2.840.10008.1.2.4.80"
+JPEG_LS_LOSSY_UID = "1.2.840.10008.1.2.4.81"
+JPEG_2000_LOSSLESS_UID = "1.2.840.10008.1.2.4.90"
+JPEG_2000_UID = "1.2.840.10008.1.2.4.91"
+HTJ2K_LOSSLESS_UID = "1.2.840.10008.1.2.4.201"
+HTJ2K_LOSSLESS_RPCL_UID = "1.2.840.10008.1.2.4.202"
+HTJ2K_UID = "1.2.840.10008.1.2.4.203"
+RLE_LOSSLESS_UID = "1.2.840.10008.1.2.5"
 
 PATIENT_ROOT_QR_FIND_SOP_CLASS_UID = "1.2.840.10008.5.1.4.1.2.1.1"
 PATIENT_ROOT_QR_MOVE_SOP_CLASS_UID = "1.2.840.10008.5.1.4.1.2.1.2"
@@ -133,6 +169,7 @@ PATIENT_ROOT_QR_GET_SOP_CLASS_UID = "1.2.840.10008.5.1.4.1.2.1.3"
 STUDY_ROOT_QR_FIND_SOP_CLASS_UID = "1.2.840.10008.5.1.4.1.2.2.1"
 STUDY_ROOT_QR_MOVE_SOP_CLASS_UID = "1.2.840.10008.5.1.4.1.2.2.2"
 STUDY_ROOT_QR_GET_SOP_CLASS_UID = "1.2.840.10008.5.1.4.1.2.2.3"
+MODALITY_WORKLIST_FIND_SOP_CLASS_UID = "1.2.840.10008.5.1.4.31"
 
 PDU_TYPES = {
     0x01: "A-ASSOCIATE-RQ",
@@ -266,9 +303,7 @@ class DICOMUIDField(DICOMElementField):
         return _uid_to_bytes(val)
 
     def i2repr(self, pkt: Optional[Packet], val: Any) -> str:
-        if isinstance(val, bytes):
-            return val.decode("ascii").rstrip("\x00")
-        return str(val)
+        return plain_str(val).rstrip("\x00")
 
     def randval(self) -> str:
         return "1.2.3.%d.%d.%d" % (
@@ -1107,7 +1142,7 @@ class DICOMApplicationContext(Packet):
         return b"", s
 
     def mysummary(self) -> str:
-        return "AppContext %s" % self.uid.decode("ascii").rstrip("\x00")
+        return "AppContext %s" % plain_str(self.uid).rstrip("\x00")
 
 
 class DICOMAbstractSyntax(Packet):
@@ -1129,7 +1164,7 @@ class DICOMAbstractSyntax(Packet):
         return b"", s
 
     def mysummary(self) -> str:
-        return "AbstractSyntax %s" % self.uid.decode("ascii").rstrip("\x00")
+        return "AbstractSyntax %s" % plain_str(self.uid).rstrip("\x00")
 
 
 class DICOMTransferSyntax(Packet):
@@ -1151,7 +1186,7 @@ class DICOMTransferSyntax(Packet):
         return b"", s
 
     def mysummary(self) -> str:
-        return "TransferSyntax %s" % self.uid.decode("ascii").rstrip("\x00")
+        return "TransferSyntax %s" % plain_str(self.uid).rstrip("\x00")
 
 
 class DICOMPresentationContextRQ(Packet):
@@ -1222,7 +1257,7 @@ class DICOMPresentationContextAC(Packet):
 
 
 class DICOMMaximumLength(Packet):
-    """DICOM Maximum Length sub-item."""
+    """DICOM Maximum Length sub-item (0 means no maximum)."""
 
     name = "DICOM Maximum Length"
     fields_desc = [
@@ -1233,6 +1268,8 @@ class DICOMMaximumLength(Packet):
         return b"", s
 
     def mysummary(self) -> str:
+        if self.max_pdu_length == 0:
+            return "MaxLength unlimited"
         return "MaxLength %d" % self.max_pdu_length
 
 
@@ -1255,7 +1292,7 @@ class DICOMImplementationClassUID(Packet):
         return b"", s
 
     def mysummary(self) -> str:
-        return "ImplClassUID %s" % self.uid.decode("ascii").rstrip("\x00")
+        return "ImplClassUID %s" % plain_str(self.uid).rstrip("\x00")
 
 
 class DICOMImplementationVersionName(Packet):
@@ -1277,7 +1314,7 @@ class DICOMImplementationVersionName(Packet):
         return b"", s
 
     def mysummary(self) -> str:
-        return "ImplVersion %s" % self.name.decode("ascii").rstrip("\x00")
+        return "ImplVersion %s" % plain_str(self.name).rstrip("\x00")
 
 
 class DICOMAsyncOperationsWindow(Packet):
@@ -1338,7 +1375,7 @@ class DICOMSOPClassExtendedNegotiation(Packet):
         return b"", s
 
     def mysummary(self) -> str:
-        return "SOPClassExtNeg %s" % self.sop_class_uid.decode("ascii").rstrip("\x00")
+        return "SOPClassExtNeg %s" % plain_str(self.sop_class_uid).rstrip("\x00")
 
 
 class DICOMSOPClassCommonExtendedNegotiation(Packet):
@@ -1364,7 +1401,7 @@ class DICOMSOPClassCommonExtendedNegotiation(Packet):
         return b"", s
 
     def mysummary(self) -> str:
-        uid = self.sop_class_uid.decode("ascii").rstrip("\x00")
+        uid = plain_str(self.sop_class_uid).rstrip("\x00")
         return "SOPClassCommonExtNeg %s" % uid
 
 
@@ -1597,11 +1634,30 @@ class A_ASSOCIATE_RJ(Packet):
         3: "DICOM UL service-provider (Presentation)",
     }
 
+    # Reason/Diag. values depend on the source (PS3.8 Table 9-21)
+    REASON_CODES = {
+        1: {
+            1: "no-reason-given",
+            2: "application-context-name-not-supported",
+            3: "calling-AE-title-not-recognized",
+            7: "called-AE-title-not-recognized",
+        },
+        2: {
+            1: "no-reason-given",
+            2: "protocol-version-not-supported",
+        },
+        3: {
+            1: "temporary-congestion",
+            2: "local-limit-exceeded",
+        },
+    }
+
     fields_desc = [
         ByteField("reserved1", 0),
         ByteEnumField("result", 1, RESULT_CODES),
         ByteEnumField("source", 1, SOURCE_CODES),
-        ByteField("reason_diag", 1),
+        MultiEnumField("reason_diag", 1, REASON_CODES,
+                       depends_on=lambda pkt: pkt.source, fmt="B"),
     ]
 
     def mysummary(self) -> str:
@@ -1665,11 +1721,24 @@ class A_ABORT(Packet):
         2: "DICOM UL service-provider",
     }
 
+    # Reason/Diag. values, only significant for a provider abort (PS3.8 9.3.8)
+    REASON_CODES = {
+        2: {
+            0: "reason-not-specified",
+            1: "unrecognized-PDU",
+            2: "unexpected-PDU",
+            4: "unrecognized-PDU-parameter",
+            5: "unexpected-PDU-parameter",
+            6: "invalid-PDU-parameter-value",
+        },
+    }
+
     fields_desc = [
         ByteField("reserved1", 0),
         ByteField("reserved2", 0),
         ByteEnumField("source", 0, SOURCE_CODES),
-        ByteField("reason_diag", 0),
+        MultiEnumField("reason_diag", 0, REASON_CODES,
+                       depends_on=lambda pkt: pkt.source, fmt="B"),
     ]
 
     def mysummary(self) -> str:
