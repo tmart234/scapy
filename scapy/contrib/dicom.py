@@ -1638,6 +1638,22 @@ class P_DATA_TF(Packet):
     def mysummary(self) -> str:
         return "P-DATA-TF (%d PDVs)" % len(self.pdv_items)
 
+    def answers(self, other: Packet) -> bool:
+        # A DIMSE response carries the Message ID (0000,0110) of its request
+        # in Message ID Being Responded To (0000,0120)
+        if not isinstance(other, P_DATA_TF):
+            return False
+        requests = [
+            (pdv.context_id, _dimse_us_element(pdv.data, 0x0110))
+            for pdv in other.pdv_items if pdv.is_command
+        ]
+        for pdv in self.pdv_items:
+            message_id = _dimse_us_element(pdv.data, 0x0120)
+            if (pdv.is_command and message_id is not None and
+                    (pdv.context_id, message_id) in requests):
+                return True
+        return False
+
 
 class A_RELEASE_RQ(Packet):
     """A-RELEASE-RQ PDU for requesting association release."""
@@ -1832,6 +1848,7 @@ class DICOMSocket:
         # type: (*Any, **Any) -> Optional[Packet]
         """Send one packet and receive one answer."""
         timeout = kargs.pop("timeout", self.read_timeout)
+        kargs.setdefault("verbose", False)
         try:
             return self.stream.sr1(*args, timeout=timeout, **kargs)
         except (socket.error, OSError) as e:
@@ -1983,10 +2000,9 @@ class DICOMSocket:
         response = self.sr1(pdata_rq)
 
         if response and response.haslayer(P_DATA_TF):
-            pdv_items = response[P_DATA_TF].pdv_items
-            if pdv_items:
-                pdv_rsp = pdv_items[0]
-                return parse_dimse_status(pdv_rsp.data)
+            for pdv in response[P_DATA_TF].pdv_items:
+                if pdv.is_command and _dimse_us_element(pdv.data, 0x0120) == msg_id:
+                    return parse_dimse_status(pdv.data)
         return None
 
     def c_store(self, dataset_bytes: bytes, sop_class_uid: str,
@@ -2056,13 +2072,17 @@ class DICOMSocket:
                 self.send(pdata_data)
                 offset += len(chunk)
 
-        response = self.recv()
+        # Skip the PDUs that do not answer the C-STORE-RQ
+        response = self.stream.sniff(
+            count=1,
+            timeout=self.read_timeout,
+            lfilter=lambda pkt: pkt.answers(pdata_cmd),
+        )
 
-        if response and response.haslayer(P_DATA_TF):
-            pdv_items = response[P_DATA_TF].pdv_items
-            if pdv_items:
-                pdv_rsp = pdv_items[0]
-                return parse_dimse_status(pdv_rsp.data)
+        if response and response[0].haslayer(P_DATA_TF):
+            for pdv in response[0][P_DATA_TF].pdv_items:
+                if pdv.is_command and _dimse_us_element(pdv.data, 0x0120) == msg_id:
+                    return parse_dimse_status(pdv.data)
         return None
 
     def release(self) -> bool:

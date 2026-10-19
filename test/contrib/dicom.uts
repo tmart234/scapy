@@ -616,22 +616,31 @@ def peer_scp(sock, received):
         )
         for context_id in (1, 3)
     ]
-    user_info = build_user_information(max_pdu_length=1024)
+    # Odd maximum length: the fragments must stay even
+    user_info = build_user_information(max_pdu_length=1025)
     stream.send(DICOM() / A_ASSOCIATE_AC(variable_items=contexts + [user_info]))
     received.append(stream.recv())
-    answer(stream, 1, C_ECHO_RSP())
+    message_id = DIMSEPacket(received[-1][PresentationDataValueItem].data).message_id
+    # A response to another request comes first
+    answer(stream, 1, C_ECHO_RSP(message_id_responded=message_id - 1, status=0x0110))
+    answer(stream, 1, C_ECHO_RSP(message_id_responded=message_id))
     while True:
         received.append(stream.recv())
         pdv = received[-1][PresentationDataValueItem]
         if pdv.is_last and not pdv.is_command:
             break
-    answer(stream, 3, C_STORE_RSP(status=0xB000))
+    message_id = DIMSEPacket(received[2][PresentationDataValueItem].data).message_id
+    answer(stream, 3, C_STORE_RSP(message_id_responded=message_id - 1, status=0xA700))
+    answer(stream, 3, C_STORE_RSP(message_id_responded=message_id, status=0xB000))
     received.append(stream.recv())
     stream.send(DICOM() / A_RELEASE_RP())
 
 client, peer = socket.socketpair()
+client.settimeout(5)
+peer.settimeout(5)
 received = []
 thread = threading.Thread(target=peer_scp, args=(peer, received))
+thread.daemon = True
 thread.start()
 dicom_sock = DICOMSocket("127.0.0.1", 104, "SERVER", read_timeout=5)
 dicom_sock.sock = client
@@ -654,7 +663,7 @@ finally:
 
 assert associated
 assert sorted(dicom_sock.accepted_contexts) == [1, 3]
-assert dicom_sock.max_pdu_length == 1024
+assert dicom_sock.max_pdu_length == 1025
 assert echo_status == 0x0000
 assert store_status == 0xB000
 assert released
@@ -664,7 +673,7 @@ assert isinstance(DIMSEPacket(received[2][PresentationDataValueItem].data), C_ST
 data_pdus = received[3:-1]
 assert len(data_pdus) == 3
 assert [len(pdu[PresentationDataValueItem].data) for pdu in data_pdus] == [1018, 1018, 964]
-assert all(pdu.length <= 1024 for pdu in data_pdus)
+assert all(pdu.length <= 1025 for pdu in data_pdus)
 assert b"".join(pdu[PresentationDataValueItem].data for pdu in data_pdus) == b"D" * 3000
 assert received[-1].haslayer(A_RELEASE_RQ)
 
