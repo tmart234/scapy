@@ -597,31 +597,73 @@ client._parse_max_pdu_length(DICOM(bytes(response)))
 assert client.max_pdu_length == client._proposed_max_pdu
 assert maximum.summary() == "DICOMVariableItem / MaxLength unlimited"
 
-= DICOMSocket associate over a stream socket
+= DICOMSocket association, C-ECHO, C-STORE and release with a peer
 import socket
+import threading
 from scapy.supersocket import StreamSocket
-pctx = DICOMVariableItem() / DICOMPresentationContextAC(
-    context_id=1, result=0, sub_items=[DICOMVariableItem() / DICOMTransferSyntax()]
-)
-response = DICOM() / A_ASSOCIATE_AC(
-    called_ae_title=b"SERVER",
-    calling_ae_title=b"SCAPY_SCU",
-    variable_items=[pctx, build_user_information(max_pdu_length=8192)],
-)
+
+def answer(stream, context_id, command):
+    pdv = PresentationDataValueItem(context_id=context_id, data=bytes(command),
+                                    is_command=1, is_last=1)
+    stream.send(DICOM() / P_DATA_TF(pdv_items=[pdv]))
+
+def peer_scp(sock, received):
+    stream = StreamSocket(sock, basecls=DICOM)
+    received.append(stream.recv())
+    contexts = [
+        DICOMVariableItem() / DICOMPresentationContextAC(
+            context_id=context_id, sub_items=[DICOMVariableItem() / DICOMTransferSyntax()]
+        )
+        for context_id in (1, 3)
+    ]
+    user_info = build_user_information(max_pdu_length=1024)
+    stream.send(DICOM() / A_ASSOCIATE_AC(variable_items=contexts + [user_info]))
+    received.append(stream.recv())
+    answer(stream, 1, C_ECHO_RSP())
+    while True:
+        received.append(stream.recv())
+        pdv = received[-1][PresentationDataValueItem]
+        if pdv.is_last and not pdv.is_command:
+            break
+    answer(stream, 3, C_STORE_RSP(status=0xB000))
+    received.append(stream.recv())
+    stream.send(DICOM() / A_RELEASE_RP())
+
 client, peer = socket.socketpair()
-peer.sendall(bytes(response))
-dicom_sock = DICOMSocket("127.0.0.1", 104, "SERVER", read_timeout=2)
+received = []
+thread = threading.Thread(target=peer_scp, args=(peer, received))
+thread.start()
+dicom_sock = DICOMSocket("127.0.0.1", 104, "SERVER", read_timeout=5)
 dicom_sock.sock = client
 dicom_sock.stream = StreamSocket(client, basecls=DICOM)
+contexts = {
+    VERIFICATION_SOP_CLASS_UID: [DEFAULT_TRANSFER_SYNTAX_UID],
+    CT_IMAGE_STORAGE_SOP_CLASS_UID: [DEFAULT_TRANSFER_SYNTAX_UID],
+}
 try:
-    assert dicom_sock.associate()
-    assert DICOM(peer.recv(4096)).haslayer(A_ASSOCIATE_RQ)
+    associated = dicom_sock.associate(contexts)
+    echo_status = dicom_sock.c_echo()
+    store_status = dicom_sock.c_store(b"D" * 3000, CT_IMAGE_STORAGE_SOP_CLASS_UID,
+                                      "1.2.3.4", DEFAULT_TRANSFER_SYNTAX_UID)
+    released = dicom_sock.release()
 finally:
+    thread.join(5)
     dicom_sock.close()
     peer.close()
 
-assert dicom_sock.accepted_contexts == {1: (VERIFICATION_SOP_CLASS_UID, DEFAULT_TRANSFER_SYNTAX_UID)}
-assert dicom_sock.max_pdu_length == 8192
+assert associated
+assert dicom_sock.max_pdu_length == 1024
+assert echo_status == 0x0000
+assert store_status == 0xB000
+assert released
+assert received[0].haslayer(A_ASSOCIATE_RQ)
+assert isinstance(DIMSEPacket(received[1][PresentationDataValueItem].data), C_ECHO_RQ)
+assert isinstance(DIMSEPacket(received[2][PresentationDataValueItem].data), C_STORE_RQ)
+data_pdus = received[3:-1]
+assert len(data_pdus) == 3
+assert all(pdu.length <= 1024 for pdu in data_pdus)
+assert b"".join(pdu[PresentationDataValueItem].data for pdu in data_pdus) == b"D" * 3000
+assert received[-1].haslayer(A_RELEASE_RQ)
 
 = build_user_information with implementation info
 user_info = build_user_information(
@@ -800,12 +842,109 @@ assert command.message_id == 9
 
 ############
 ############
++ PDUs from other DICOM implementations
+
+= DCMTK echoscu A-ASSOCIATE-RQ
+raw = bytes.fromhex(
+    "0100000000cd0001000053434150595f5343502020202020202044434d544b5f"
+    "5343552020202020202000000000000000000000000000000000000000000000"
+    "0000000000000000000010000015312e322e3834302e31303030382e332e312e"
+    "312e312000002e0100ff0030000011312e322e3834302e31303030382e312e31"
+    "40000011312e322e3834302e31303030382e312e325000003a51000004000040"
+    "005200001b312e322e3237362e302e373233303031302e332e302e332e362e37"
+    "5500000f4f464649535f44434d544b5f333637"
+)
+pkt = DICOM(raw)
+assert bytes(pkt) == raw
+assert pkt.called_ae_title == b"SCAPY_SCP       "
+assert pkt.calling_ae_title == b"DCMTK_SCU       "
+items = pkt.variable_items
+assert [item.item_type for item in items] == [0x10, 0x20, 0x50]
+assert items[1].sub_items[0].uid == VERIFICATION_SOP_CLASS_UID.encode()
+assert items[1].sub_items[1].uid == DEFAULT_TRANSFER_SYNTAX_UID.encode()
+sub_items = items[2].sub_items
+assert sub_items[0].max_pdu_length == 16384
+assert sub_items[2].version_name == b"OFFIS_DCMTK_367"
+
+= DCMTK storescp A-ASSOCIATE-AC
+raw = bytes.fromhex(
+    "0200000000d50001000053544f52455343502020202020202020534341505920"
+    "2020202020202020202000000000000000000000000000000000000000000000"
+    "0000000000000000000010000015312e322e3834302e31303030382e332e312e"
+    "312e31210000190100000040000011312e322e3834302e31303030382e312e32"
+    "210000190300040040000011312e322e3834302e31303030382e312e32500000"
+    "3a51000004000040005200001b312e322e3237362e302e373233303031302e33"
+    "2e302e332e362e375500000f4f464649535f44434d544b5f333637"
+)
+pkt = DICOM(raw)
+assert bytes(pkt) == raw
+results = [(item.context_id, item.result) for item in pkt.variable_items if item.item_type == 0x21]
+assert results == [(1, 0), (3, 4)]
+
+= pynetdicom A-ASSOCIATE-RQ with role selection and user identity
+raw = bytes.fromhex(
+    "01000000010b00010000414e592d53435020202020202020202050594e455444"
+    "49434f4d20202020202000000000000000000000000000000000000000000000"
+    "0000000000000000000010000015312e322e3834302e31303030382e332e312e"
+    "312e3120000038010000003000001b312e322e3834302e31303030382e352e31"
+    "2e342e312e322e312e3340000011312e322e3834302e31303030382e312e3250"
+    "00006e5100000400003ffe52000020312e322e3832362e302e312e3336383030"
+    "34332e392e333831312e332e302e345500000e50594e45544449434f4d5f3330"
+    "345400001d0019312e322e3834302e31303030382e352e312e342e312e312e32"
+    "00015800000b01010005616c6963650000"
+)
+pkt = DICOM(raw)
+assert bytes(pkt) == raw
+sub_items = pkt[DICOMUserInformation].sub_items
+assert [item.item_type for item in sub_items] == [0x51, 0x52, 0x55, 0x54, 0x58]
+assert sub_items[3].sop_class_uid == CT_IMAGE_STORAGE_SOP_CLASS_UID.encode()
+assert sub_items[3].scp_role == 1
+assert sub_items[4].user_identity_type == 1
+assert sub_items[4].primary_field == b"alice"
+assert sub_items[4].secondary_field_length == 0
+
+= DCMTK C-STORE-RQ command
+raw = bytes.fromhex(
+    "000000000400000092000000000002001a000000312e322e3834302e31303030"
+    "382e352e312e342e312e312e3700000000010200000001000000100102000000"
+    "010000000007020000000000000000080200000001000000001040000000312e"
+    "322e3832362e302e312e333638303034332e382e3439382e3931323238303239"
+    "383230363137393839323632323137313036373132383133303530393233"
+)
+pkt = DIMSEPacket(raw)
+assert isinstance(pkt, C_STORE_RQ)
+assert bytes(pkt) == raw
+assert pkt.affected_sop_class_uid == b"1.2.840.10008.5.1.4.1.1.7\x00"
+assert pkt.data_set_type == 0x0001
+assert pkt.move_originator_ae_title is None
+assert not pkt.payload
+
+= pynetdicom C-STORE-RSP with an Error Comment
+raw = bytes.fromhex(
+    "000000000400000072000000000002001a000000312e322e3834302e31303030"
+    "382e352e312e342e312e312e3200000000010200000001800000200102000000"
+    "050000000008020000000101000000090200000000a700000209100000004f75"
+    "74206f66207265736f75726365730000001008000000312e322e332e3400"
+)
+pkt = DIMSEPacket(raw)
+assert isinstance(pkt, C_STORE_RSP)
+assert bytes(pkt) == raw
+assert pkt.status == 0xA700
+assert pkt.error_comment == b"Out of resources"
+assert pkt.affected_sop_instance_uid == b"1.2.3.4\x00"
+assert not pkt.payload
+
+############
+############
 + TCP layer binding
 
-= DICOM binds to TCP port 104
+= DICOM binds to TCP ports 104 and 11112
 from scapy.layers.inet import TCP
-pkt = TCP(dport=104) / b'\x01\x00\x00\x00\x00\x04'
-assert DICOM in pkt or pkt.payload
+for port in [DICOM_PORT, DICOM_PORT_ALT]:
+    pkt = TCP(bytes(TCP(sport=40000, dport=port) / DICOM() / A_RELEASE_RQ()))
+    assert pkt.haslayer(A_RELEASE_RQ)
+    pkt = TCP(bytes(TCP(sport=port, dport=40000) / DICOM() / A_RELEASE_RP()))
+    assert pkt.haslayer(A_RELEASE_RP)
 
 ############
 ############
