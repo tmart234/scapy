@@ -1102,9 +1102,6 @@ class DICOMGenericItem(Packet):
         ),
     ]
 
-    def extract_padding(self, s: bytes) -> Tuple[bytes, bytes]:
-        return b"", s
-
 
 class DICOMVariableItem(Packet):
     """DICOM variable item header with type and length fields."""
@@ -1142,9 +1139,6 @@ class DICOMApplicationContext(Packet):
         ),
     ]
 
-    def extract_padding(self, s: bytes) -> Tuple[bytes, bytes]:
-        return b"", s
-
     def mysummary(self) -> str:
         return "AppContext %s" % plain_str(self.uid).rstrip("\x00")
 
@@ -1164,9 +1158,6 @@ class DICOMAbstractSyntax(Packet):
         ),
     ]
 
-    def extract_padding(self, s: bytes) -> Tuple[bytes, bytes]:
-        return b"", s
-
     def mysummary(self) -> str:
         return "AbstractSyntax %s" % plain_str(self.uid).rstrip("\x00")
 
@@ -1185,9 +1176,6 @@ class DICOMTransferSyntax(Packet):
             )
         ),
     ]
-
-    def extract_padding(self, s: bytes) -> Tuple[bytes, bytes]:
-        return b"", s
 
     def mysummary(self) -> str:
         return "TransferSyntax %s" % plain_str(self.uid).rstrip("\x00")
@@ -1213,9 +1201,6 @@ class DICOMPresentationContextRQ(Packet):
             )
         ),
     ]
-
-    def extract_padding(self, s: bytes) -> Tuple[bytes, bytes]:
-        return b"", s
 
     def mysummary(self) -> str:
         return "PresentationContext-RQ ctx_id=%d" % self.context_id
@@ -1251,9 +1236,6 @@ class DICOMPresentationContextAC(Packet):
         ),
     ]
 
-    def extract_padding(self, s: bytes) -> Tuple[bytes, bytes]:
-        return b"", s
-
     def mysummary(self) -> str:
         return self.sprintf(
             "PresentationContext-AC ctx_id=%context_id% result=%result%"
@@ -1267,9 +1249,6 @@ class DICOMMaximumLength(Packet):
     fields_desc = [
         IntField("max_pdu_length", 16384),
     ]
-
-    def extract_padding(self, s: bytes) -> Tuple[bytes, bytes]:
-        return b"", s
 
     def mysummary(self) -> str:
         if self.max_pdu_length == 0:
@@ -1292,9 +1271,6 @@ class DICOMImplementationClassUID(Packet):
         ),
     ]
 
-    def extract_padding(self, s: bytes) -> Tuple[bytes, bytes]:
-        return b"", s
-
     def mysummary(self) -> str:
         return "ImplClassUID %s" % plain_str(self.uid).rstrip("\x00")
 
@@ -1314,9 +1290,6 @@ class DICOMImplementationVersionName(Packet):
         ),
     ]
 
-    def extract_padding(self, s: bytes) -> Tuple[bytes, bytes]:
-        return b"", s
-
     def mysummary(self) -> str:
         return "ImplVersion %s" % plain_str(self.version_name).rstrip("\x00")
 
@@ -1329,9 +1302,6 @@ class DICOMAsyncOperationsWindow(Packet):
         ShortField("max_ops_invoked", 1),
         ShortField("max_ops_performed", 1),
     ]
-
-    def extract_padding(self, s: bytes) -> Tuple[bytes, bytes]:
-        return b"", s
 
     def mysummary(self) -> str:
         return "AsyncOps inv=%d perf=%d" % (
@@ -1350,9 +1320,6 @@ class DICOMSCPSCURoleSelection(Packet):
         ByteField("scu_role", 0),
         ByteField("scp_role", 0),
     ]
-
-    def extract_padding(self, s: bytes) -> Tuple[bytes, bytes]:
-        return b"", s
 
     def mysummary(self) -> str:
         return "RoleSelection SCU=%d SCP=%d" % (self.scu_role, self.scp_role)
@@ -1374,9 +1341,6 @@ class DICOMSOPClassExtendedNegotiation(Packet):
                         else 0
                     )),
     ]
-
-    def extract_padding(self, s: bytes) -> Tuple[bytes, bytes]:
-        return b"", s
 
     def mysummary(self) -> str:
         return "SOPClassExtNeg %s" % plain_str(self.sop_class_uid).rstrip("\x00")
@@ -1400,9 +1364,6 @@ class DICOMSOPClassCommonExtendedNegotiation(Packet):
         StrLenField("related_sop_class_uids", b"",
                     length_from=lambda pkt: pkt.related_sop_class_uid_length),
     ]
-
-    def extract_padding(self, s: bytes) -> Tuple[bytes, bytes]:
-        return b"", s
 
     def mysummary(self) -> str:
         uid = plain_str(self.sop_class_uid).rstrip("\x00")
@@ -1436,9 +1397,6 @@ class DICOMUserIdentity(Packet):
                     length_from=lambda pkt: pkt.secondary_field_length),
     ]
 
-    def extract_padding(self, s: bytes) -> Tuple[bytes, bytes]:
-        return b"", s
-
     def mysummary(self) -> str:
         return self.sprintf("UserIdentity %user_identity_type%")
 
@@ -1453,9 +1411,6 @@ class DICOMUserIdentityResponse(Packet):
         StrLenField("server_response", b"",
                     length_from=lambda pkt: pkt.response_length),
     ]
-
-    def extract_padding(self, s: bytes) -> Tuple[bytes, bytes]:
-        return b"", s
 
     def mysummary(self) -> str:
         return "UserIdentityResponse"
@@ -1477,9 +1432,6 @@ class DICOMUserInformation(Packet):
             )
         ),
     ]
-
-    def extract_padding(self, s: bytes) -> Tuple[bytes, bytes]:
-        return b"", s
 
     def mysummary(self) -> str:
         return "UserInfo (%d items)" % len(self.sub_items)

@@ -857,6 +857,40 @@ command = DIMSEPacket(pdus[1][PresentationDataValueItem].data)
 assert isinstance(command, C_ECHO_RQ)
 assert command.message_id == 9
 
+= StreamSocket and TCPSession with a sub-item longer than its value
+ac = bytes(DICOM() / A_ASSOCIATE_AC(variable_items=[
+    DICOMVariableItem() / DICOMUserInformation(sub_items=[
+        DICOMVariableItem() / DICOMMaximumLength(max_pdu_length=16384) / Raw(b"\x00\x00"),
+        DICOMVariableItem() / DICOMImplementationClassUID(uid=b"1.2.3.4"),
+    ]),
+]))
+release = bytes(DICOM() / A_RELEASE_RQ())
+sub_items = DICOM(ac)[DICOMUserInformation].sub_items
+assert sub_items[0].length == 6
+assert sub_items[0].max_pdu_length == 16384
+assert sub_items[1].uid == b"1.2.3.4"
+client, peer = socket.socketpair()
+client.settimeout(5)
+peer.sendall(ac + release)
+stream = StreamSocket(client, basecls=DICOM)
+try:
+    first = stream.recv()
+    second = stream.recv()
+finally:
+    stream.close()
+    peer.close()
+
+assert bytes(first) == ac
+assert second.haslayer(A_RELEASE_RQ)
+segments = [
+    IP(src="192.0.2.2", dst="192.0.2.1")
+    / TCP(sport=104, dport=40000, flags="PA", seq=1)
+    / (ac + release)
+]
+pdus = [pkt[DICOM] for pkt in sniff(offline=segments, session=TCPSession) if DICOM in pkt]
+assert bytes(pdus[0]) == ac + release
+assert pdus[0].payload.payload.haslayer(A_RELEASE_RQ)
+
 ############
 ############
 + PDUs from other DICOM implementations
