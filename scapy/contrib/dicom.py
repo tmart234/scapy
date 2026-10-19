@@ -24,7 +24,6 @@ from scapy.fields import (
     BitField,
     ByteEnumField,
     ByteField,
-    ConditionalField,
     Field,
     FieldLenField,
     IntField,
@@ -70,6 +69,7 @@ __all__ = [
     "DICOMApplicationContext",
     "DICOMAsyncOperationsWindow",
     "DICOMElementField",
+    "DICOMGenericItem",
     "DICOMImplementationClassUID",
     "DICOMImplementationVersionName",
     "DICOMMaximumLength",
@@ -136,7 +136,7 @@ __all__ = [
     "parse_dimse_status",
 ]
 
-log = logging.getLogger("scapy.contrib.dicom")
+log_dicom = logging.getLogger("scapy.contrib.dicom")
 
 DICOM_PORT = 104
 DICOM_PORT_ALT = 11112
@@ -544,6 +544,7 @@ class C_ECHO_RSP(DIMSEPacket):
         DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
         DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
         DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMElementField("error_comment", None, 0x0000, 0x0902),
     ]
 
     def mysummary(self) -> str:
@@ -596,6 +597,8 @@ class C_STORE_RSP(DIMSEPacket):
         DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
         DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
         DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMATField("offending_element", None, 0x0000, 0x0901),
+        DICOMElementField("error_comment", None, 0x0000, 0x0902),
         DICOMUIDField("affected_sop_instance_uid",
                       "1.2.3.4.5.6.7.8.9", 0x0000, 0x1000),
     ]
@@ -645,6 +648,8 @@ class C_FIND_RSP(DIMSEPacket):
         DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
         DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
         DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMATField("offending_element", None, 0x0000, 0x0901),
+        DICOMElementField("error_comment", None, 0x0000, 0x0902),
     ]
 
     def mysummary(self) -> str:
@@ -693,6 +698,8 @@ class C_MOVE_RSP(DIMSEPacket):
         DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
         DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
         DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMATField("offending_element", None, 0x0000, 0x0901),
+        DICOMElementField("error_comment", None, 0x0000, 0x0902),
         DICOMUSField("num_remaining", 0, 0x0000, 0x1020),
         DICOMUSField("num_completed", 0, 0x0000, 0x1021),
         DICOMUSField("num_failed", 0, 0x0000, 0x1022),
@@ -744,6 +751,8 @@ class C_GET_RSP(DIMSEPacket):
         DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
         DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
         DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMATField("offending_element", None, 0x0000, 0x0901),
+        DICOMElementField("error_comment", None, 0x0000, 0x0902),
         DICOMUSField("num_remaining", 0, 0x0000, 0x1020),
         DICOMUSField("num_completed", 0, 0x0000, 0x1021),
         DICOMUSField("num_failed", 0, 0x0000, 0x1022),
@@ -809,6 +818,8 @@ class N_EVENT_REPORT_RSP(DIMSEPacket):
         DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
         DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
         DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMElementField("error_comment", None, 0x0000, 0x0902),
+        DICOMUSField("error_id", None, 0x0000, 0x0903),
         DICOMUIDField("affected_sop_instance_uid", "", 0x0000, 0x1000),
         DICOMUSField("event_type_id", 0, 0x0000, 0x1002),
     ]
@@ -857,7 +868,10 @@ class N_GET_RSP(DIMSEPacket):
         DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
         DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
         DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMElementField("error_comment", None, 0x0000, 0x0902),
+        DICOMUSField("error_id", None, 0x0000, 0x0903),
         DICOMUIDField("affected_sop_instance_uid", "", 0x0000, 0x1000),
+        DICOMATField("attribute_identifier_list", None, 0x0000, 0x1005),
     ]
 
     def mysummary(self) -> str:
@@ -903,7 +917,10 @@ class N_SET_RSP(DIMSEPacket):
         DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
         DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
         DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMElementField("error_comment", None, 0x0000, 0x0902),
+        DICOMUSField("error_id", None, 0x0000, 0x0903),
         DICOMUIDField("affected_sop_instance_uid", "", 0x0000, 0x1000),
+        DICOMATField("attribute_identifier_list", None, 0x0000, 0x1005),
     ]
 
     def mysummary(self) -> str:
@@ -950,6 +967,8 @@ class N_ACTION_RSP(DIMSEPacket):
         DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
         DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
         DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMElementField("error_comment", None, 0x0000, 0x0902),
+        DICOMUSField("error_id", None, 0x0000, 0x0903),
         DICOMUIDField("affected_sop_instance_uid", "", 0x0000, 0x1000),
         DICOMUSField("action_type_id", 0, 0x0000, 0x1008),
     ]
@@ -997,7 +1016,10 @@ class N_CREATE_RSP(DIMSEPacket):
         DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
         DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
         DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMElementField("error_comment", None, 0x0000, 0x0902),
+        DICOMUSField("error_id", None, 0x0000, 0x0903),
         DICOMUIDField("affected_sop_instance_uid", "", 0x0000, 0x1000),
+        DICOMATField("attribute_identifier_list", None, 0x0000, 0x1005),
     ]
 
     def mysummary(self) -> str:
@@ -1043,6 +1065,8 @@ class N_DELETE_RSP(DIMSEPacket):
         DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
         DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
         DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMElementField("error_comment", None, 0x0000, 0x0902),
+        DICOMUSField("error_id", None, 0x0000, 0x0903),
         DICOMUIDField("affected_sop_instance_uid", "", 0x0000, 0x1000),
     ]
 
@@ -1099,26 +1123,6 @@ class DICOMVariableItem(Packet):
             return s[:self.length], s[self.length:]
         return s, b""
 
-    def guess_payload_class(self, payload: bytes) -> type:
-        type_to_class = {
-            0x10: DICOMApplicationContext,
-            0x20: DICOMPresentationContextRQ,
-            0x21: DICOMPresentationContextAC,
-            0x30: DICOMAbstractSyntax,
-            0x40: DICOMTransferSyntax,
-            0x50: DICOMUserInformation,
-            0x51: DICOMMaximumLength,
-            0x52: DICOMImplementationClassUID,
-            0x53: DICOMAsyncOperationsWindow,
-            0x54: DICOMSCPSCURoleSelection,
-            0x55: DICOMImplementationVersionName,
-            0x56: DICOMSOPClassExtendedNegotiation,
-            0x57: DICOMSOPClassCommonExtendedNegotiation,
-            0x58: DICOMUserIdentity,
-            0x59: DICOMUserIdentityResponse,
-        }
-        return type_to_class.get(self.item_type, DICOMGenericItem)
-
     def mysummary(self) -> str:
         return self.sprintf("Item %item_type%")
 
@@ -1129,7 +1133,7 @@ class DICOMApplicationContext(Packet):
     name = "DICOM Application Context"
     fields_desc = [
         StrLenField(
-            "uid", _uid_to_bytes(APP_CONTEXT_UID),
+            "uid", _uid_to_bytes_raw(APP_CONTEXT_UID),
             length_from=lambda pkt: (
                 pkt.underlayer.length
                 if pkt.underlayer and pkt.underlayer.length
@@ -1173,7 +1177,7 @@ class DICOMTransferSyntax(Packet):
     name = "DICOM Transfer Syntax"
     fields_desc = [
         StrLenField(
-            "uid", _uid_to_bytes(DEFAULT_TRANSFER_SYNTAX_UID),
+            "uid", _uid_to_bytes_raw(DEFAULT_TRANSFER_SYNTAX_UID),
             length_from=lambda pkt: (
                 pkt.underlayer.length
                 if pkt.underlayer and pkt.underlayer.length
@@ -1301,11 +1305,11 @@ class DICOMImplementationVersionName(Packet):
     name = "DICOM Implementation Version Name"
     fields_desc = [
         StrLenField(
-            "name", b"",
+            "version_name", b"",
             length_from=lambda pkt: (
                 pkt.underlayer.length
                 if pkt.underlayer and pkt.underlayer.length
-                else len(pkt.name)
+                else len(pkt.version_name)
             )
         ),
     ]
@@ -1314,7 +1318,7 @@ class DICOMImplementationVersionName(Packet):
         return b"", s
 
     def mysummary(self) -> str:
-        return "ImplVersion %s" % plain_str(self.name).rstrip("\x00")
+        return "ImplVersion %s" % plain_str(self.version_name).rstrip("\x00")
 
 
 class DICOMAsyncOperationsWindow(Packet):
@@ -1425,16 +1429,11 @@ class DICOMUserIdentity(Packet):
                       length_of="primary_field", fmt="!H"),
         StrLenField("primary_field", b"",
                     length_from=lambda pkt: pkt.primary_field_length),
-        ConditionalField(
-            FieldLenField("secondary_field_length", None,
-                          length_of="secondary_field", fmt="!H"),
-            lambda pkt: pkt.user_identity_type == 2
-        ),
-        ConditionalField(
-            StrLenField("secondary_field", b"",
-                        length_from=lambda pkt: pkt.secondary_field_length),
-            lambda pkt: pkt.user_identity_type == 2
-        ),
+        # Always present, only non-empty for Username and Passcode
+        FieldLenField("secondary_field_length", None,
+                      length_of="secondary_field", fmt="!H"),
+        StrLenField("secondary_field", b"",
+                    length_from=lambda pkt: pkt.secondary_field_length),
     ]
 
     def extract_padding(self, s: bytes) -> Tuple[bytes, bytes]:
@@ -1470,7 +1469,7 @@ class DICOMUserInformation(Packet):
         PacketListField(
             "sub_items", [],
             DICOMVariableItem,
-            max_count=32,
+            max_count=256,
             length_from=lambda pkt: (
                 pkt.underlayer.length
                 if pkt.underlayer and pkt.underlayer.length
@@ -1762,12 +1761,12 @@ def build_presentation_context_rq(context_id: int,
                                   abstract_syntax_uid: str,
                                   transfer_syntax_uids: List[str]) -> Packet:
     """Build a Presentation Context RQ item."""
-    abs_uid = _uid_to_bytes(abstract_syntax_uid)
+    abs_uid = _uid_to_bytes_raw(abstract_syntax_uid)
     abs_syn = DICOMVariableItem() / DICOMAbstractSyntax(uid=abs_uid)
 
     sub_items = [abs_syn]
     for ts_uid in transfer_syntax_uids:
-        ts = DICOMVariableItem() / DICOMTransferSyntax(uid=_uid_to_bytes(ts_uid))
+        ts = DICOMVariableItem() / DICOMTransferSyntax(uid=_uid_to_bytes_raw(ts_uid))
         sub_items.append(ts)
 
     return DICOMVariableItem() / DICOMPresentationContextRQ(
@@ -1792,7 +1791,7 @@ def build_user_information(max_pdu_length: int = 16384,
     ]
 
     if implementation_class_uid:
-        uid = _uid_to_bytes(implementation_class_uid)
+        uid = _uid_to_bytes_raw(implementation_class_uid)
         sub_items.append(
             DICOMVariableItem() / DICOMImplementationClassUID(uid=uid)
         )
@@ -1801,7 +1800,7 @@ def build_user_information(max_pdu_length: int = 16384,
         for sop_class_uid, (scu_role, scp_role) in roles.items():
             sub_items.append(
                 DICOMVariableItem() / DICOMSCPSCURoleSelection(
-                    sop_class_uid=_uid_to_bytes(sop_class_uid),
+                    sop_class_uid=_uid_to_bytes_raw(sop_class_uid),
                     scu_role=scu_role,
                     scp_role=scp_role,
                 )
@@ -1813,7 +1812,7 @@ def build_user_information(max_pdu_length: int = 16384,
         else:
             ver_bytes = implementation_version.encode('ascii')
         sub_items.append(
-            DICOMVariableItem() / DICOMImplementationVersionName(name=ver_bytes)
+            DICOMVariableItem() / DICOMImplementationVersionName(version_name=ver_bytes)
         )
 
     if user_identity is not None:
@@ -1862,7 +1861,7 @@ class DICOMSocket:
             self.stream = StreamSocket(self.sock, basecls=DICOM)
             return True
         except (socket.error, socket.timeout, OSError) as e:
-            log.error("Connection failed: %s", e)
+            log_dicom.error("Connection failed: %s", e)
             return False
 
     def send(self, pkt: Packet) -> None:
@@ -1874,7 +1873,7 @@ class DICOMSocket:
         except socket.timeout:
             return None
         except (socket.error, OSError) as e:
-            log.error("Error receiving PDU: %s", e)
+            log_dicom.error("Error receiving PDU: %s", e)
             return None
 
     def sr1(self, *args, **kargs):
@@ -1884,7 +1883,7 @@ class DICOMSocket:
         try:
             return self.stream.sr1(*args, timeout=timeout, **kargs)
         except (socket.error, OSError) as e:
-            log.error("Error in sr1: %s", e)
+            log_dicom.error("Error in sr1: %s", e)
             return None
 
     def send_raw_bytes(self, raw_bytes: bytes) -> None:
@@ -1901,6 +1900,7 @@ class DICOMSocket:
             }
 
         self._proposed_context_map = {}
+        self.accepted_contexts = {}
 
         variable_items: List[Packet] = [
             DICOMVariableItem() / DICOMApplicationContext()
@@ -1931,7 +1931,7 @@ class DICOMSocket:
                 self._parse_max_pdu_length(response)
                 return True
             elif response.haslayer(A_ASSOCIATE_RJ):
-                log.error(
+                log_dicom.error(
                     "Association rejected: result=%d, source=%d, reason=%d",
                     response[A_ASSOCIATE_RJ].result,
                     response[A_ASSOCIATE_RJ].source,
@@ -1939,7 +1939,7 @@ class DICOMSocket:
                 )
                 return False
 
-        log.error("Association failed: no valid response received")
+        log_dicom.error("Association failed: no valid response received")
         return False
 
     def _parse_max_pdu_length(self, response: Packet) -> None:
@@ -2009,12 +2009,12 @@ class DICOMSocket:
 
     def c_echo(self) -> Optional[int]:
         if not self.assoc_established:
-            log.error("Association not established")
+            log_dicom.error("Association not established")
             return None
 
         echo_ctx_id = self._find_accepted_context_id(VERIFICATION_SOP_CLASS_UID)
         if echo_ctx_id is None:
-            log.error("No accepted context for Verification SOP Class")
+            log_dicom.error("No accepted context for Verification SOP Class")
             return None
 
         msg_id = self._get_next_message_id()
@@ -2041,7 +2041,7 @@ class DICOMSocket:
                 sop_instance_uid: str, transfer_syntax_uid: str
                 ) -> Optional[int]:
         if not self.assoc_established:
-            log.error("Association not established")
+            log_dicom.error("Association not established")
             return None
 
         store_ctx_id = self._find_accepted_context_id(
@@ -2049,11 +2049,18 @@ class DICOMSocket:
             transfer_syntax_uid,
         )
         if store_ctx_id is None:
-            log.error(
+            log_dicom.error(
                 "No accepted context for SOP %s with TS %s",
                 sop_class_uid,
                 transfer_syntax_uid,
             )
+            return None
+
+        # Fragments have an even length (PS3.8 Annex E) and the PDV item
+        # header takes 6 bytes of the negotiated maximum PDU length
+        max_pdv_data = (self.max_pdu_length - 6) & ~1
+        if max_pdv_data < 2:
+            log_dicom.error("Maximum PDU length too small: %d", self.max_pdu_length)
             return None
 
         msg_id = self._get_next_message_id()
@@ -2072,8 +2079,6 @@ class DICOMSocket:
         )
         pdata_cmd = DICOM() / P_DATA_TF(pdv_items=[cmd_pdv])
         self.send(pdata_cmd)
-
-        max_pdv_data = self.max_pdu_length - 12
 
         if len(dataset_bytes) <= max_pdv_data:
             data_pdv = PresentationDataValueItem(
