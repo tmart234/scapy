@@ -225,6 +225,15 @@ assert len(pctx_items) == 2
 assert pctx_items[0][DICOMPresentationContextRQ].context_id == 1
 assert pctx_items[1][DICOMPresentationContextRQ].context_id == 3
 
+= A-ASSOCIATE-AC and A-ASSOCIATE-RJ answer an A-ASSOCIATE-RQ
+rq = DICOM() / A_ASSOCIATE_RQ(called_ae_title="SERVER", calling_ae_title="SCAPY_SCU")
+ac = DICOM(bytes(DICOM() / A_ASSOCIATE_AC(called_ae_title="SERVER", calling_ae_title="SCAPY_SCU")))
+rj = DICOM(bytes(DICOM() / A_ASSOCIATE_RJ()))
+assert ac.hashret() == rq.hashret()
+assert ac.answers(rq)
+assert rj.hashret() == rq.hashret()
+assert rj.answers(rq)
+
 ############
 ############
 + A-ASSOCIATE-RJ tests
@@ -478,6 +487,32 @@ response = DICOM() / A_ASSOCIATE_AC(variable_items=[user_info])
 client = DICOMSocket("127.0.0.1", 104, "SERVER")
 client._parse_max_pdu_length(DICOM(bytes(response)))
 assert client.max_pdu_length == client._proposed_max_pdu
+
+= DICOMSocket associate over a stream socket
+import socket
+from scapy.supersocket import StreamSocket
+pctx = DICOMVariableItem() / DICOMPresentationContextAC(
+    context_id=1, result=0, sub_items=[DICOMVariableItem() / DICOMTransferSyntax()]
+)
+response = DICOM() / A_ASSOCIATE_AC(
+    called_ae_title=b"SERVER",
+    calling_ae_title=b"SCAPY_SCU",
+    variable_items=[pctx, build_user_information(max_pdu_length=8192)],
+)
+client, peer = socket.socketpair()
+peer.sendall(bytes(response))
+dicom_sock = DICOMSocket("127.0.0.1", 104, "SERVER", read_timeout=2)
+dicom_sock.sock = client
+dicom_sock.stream = StreamSocket(client, basecls=DICOM)
+try:
+    assert dicom_sock.associate()
+    assert DICOM(peer.recv(4096)).haslayer(A_ASSOCIATE_RQ)
+finally:
+    dicom_sock.close()
+    peer.close()
+
+assert dicom_sock.accepted_contexts == {1: (VERIFICATION_SOP_CLASS_UID, DEFAULT_TRANSFER_SYNTAX_UID)}
+assert dicom_sock.max_pdu_length == 8192
 
 = build_user_information with implementation info
 user_info = build_user_information(

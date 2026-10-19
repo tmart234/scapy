@@ -1176,9 +1176,6 @@ class A_ASSOCIATE_RQ(Packet):
         calling = self.calling_ae_title.strip().decode("ascii", errors="replace")
         return "A-ASSOCIATE-RQ %s -> %s" % (calling, called)
 
-    def hashret(self) -> bytes:
-        return self.called_ae_title + self.calling_ae_title
-
 
 class A_ASSOCIATE_AC(Packet):
     """A-ASSOCIATE-AC PDU for accepting DICOM associations."""
@@ -1206,9 +1203,6 @@ class A_ASSOCIATE_AC(Packet):
         called = self.called_ae_title.strip().decode("ascii", errors="replace")
         calling = self.calling_ae_title.strip().decode("ascii", errors="replace")
         return "A-ASSOCIATE-AC %s <- %s" % (calling, called)
-
-    def hashret(self) -> bytes:
-        return self.called_ae_title + self.calling_ae_title
 
     def answers(self, other: Packet) -> bool:
         return isinstance(other, A_ASSOCIATE_RQ)
