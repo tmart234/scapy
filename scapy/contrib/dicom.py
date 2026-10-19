@@ -1300,11 +1300,11 @@ class DICOMImplementationVersionName(Packet):
     name = "DICOM Implementation Version Name"
     fields_desc = [
         StrLenField(
-            "name", b"",
+            "version_name", b"",
             length_from=lambda pkt: (
                 pkt.underlayer.length
                 if pkt.underlayer and pkt.underlayer.length
-                else len(pkt.name)
+                else len(pkt.version_name)
             )
         ),
     ]
@@ -1313,7 +1313,7 @@ class DICOMImplementationVersionName(Packet):
         return b"", s
 
     def mysummary(self) -> str:
-        return "ImplVersion %s" % plain_str(self.name).rstrip("\x00")
+        return "ImplVersion %s" % plain_str(self.version_name).rstrip("\x00")
 
 
 class DICOMAsyncOperationsWindow(Packet):
@@ -1807,7 +1807,7 @@ def build_user_information(max_pdu_length: int = 16384,
         else:
             ver_bytes = implementation_version.encode('ascii')
         sub_items.append(
-            DICOMVariableItem() / DICOMImplementationVersionName(name=ver_bytes)
+            DICOMVariableItem() / DICOMImplementationVersionName(version_name=ver_bytes)
         )
 
     if user_identity is not None:

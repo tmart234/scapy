@@ -620,6 +620,8 @@ types = [item.item_type for item in sub_items]
 assert 0x51 in types
 assert 0x52 in types
 assert 0x55 in types
+assert sub_items[2].version_name == b"SCAPY_V1"
+assert sub_items[2].summary() == "DICOMVariableItem / ImplVersion SCAPY_V1"
 
 = build_user_information with role selection and user identity
 user_info = build_user_information(
