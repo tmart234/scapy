@@ -48,6 +48,7 @@ __all__ = [
     "A_RELEASE_RP",
     "A_RELEASE_RQ",
     "CT_IMAGE_STORAGE_SOP_CLASS_UID",
+    "C_CANCEL_RQ",
     "C_ECHO_RQ",
     "C_ECHO_RSP",
     "C_FIND_RQ",
@@ -62,6 +63,7 @@ __all__ = [
     "DICOM",
     "DICOMAEDIMSEField",
     "DICOMAETitleField",
+    "DICOMATField",
     "DICOMAbstractSyntax",
     "DICOMApplicationContext",
     "DICOMAsyncOperationsWindow",
@@ -87,6 +89,19 @@ __all__ = [
     "DICOM_PORT",
     "DICOM_PORT_ALT",
     "DIMSEPacket",
+    "DIMSE_STATUS_CODES",
+    "N_ACTION_RQ",
+    "N_ACTION_RSP",
+    "N_CREATE_RQ",
+    "N_CREATE_RSP",
+    "N_DELETE_RQ",
+    "N_DELETE_RSP",
+    "N_EVENT_REPORT_RQ",
+    "N_EVENT_REPORT_RSP",
+    "N_GET_RQ",
+    "N_GET_RSP",
+    "N_SET_RQ",
+    "N_SET_RSP",
     "PATIENT_ROOT_QR_FIND_SOP_CLASS_UID",
     "PATIENT_ROOT_QR_GET_SOP_CLASS_UID",
     "PATIENT_ROOT_QR_MOVE_SOP_CLASS_UID",
@@ -319,6 +334,25 @@ class DICOMAEDIMSEField(DICOMElementField):
         return str(val).strip()
 
 
+class DICOMATField(DICOMElementField):
+    """DICOM Attribute Tag (AT) element field: a list of (group, element)."""
+
+    # The list is a single value, not a set of values to iterate on
+    islist = 1
+
+    def i2m(self, pkt: Optional[Packet], val: Any) -> bytes:
+        return b"".join(struct.pack("<HH", group, elem) for group, elem in val)
+
+    def m2i(self, pkt: Optional[Packet], val: bytes) -> List[Tuple[int, int]]:
+        return [
+            struct.unpack("<HH", val[i:i + 4])
+            for i in range(0, len(val) - 3, 4)
+        ]
+
+    def randval(self) -> List[Tuple[int, int]]:
+        return []
+
+
 def _dimse_us_element(dimse_bytes: bytes, tag_elem: int) -> Optional[int]:
     """Extract a US element of the command group from DIMSE command bytes."""
     try:
@@ -412,6 +446,36 @@ PRIORITY_VALUES = {
     0x0002: "LOW",
 }
 
+# DIMSE status codes (PS3.7 Annex C)
+DIMSE_STATUS_CODES = {
+    0x0000: "Success",
+    0x0105: "No such attribute",
+    0x0106: "Invalid attribute value",
+    0x0107: "Attribute list error",
+    0x0110: "Processing failure",
+    0x0111: "Duplicate SOP instance",
+    0x0112: "No such SOP instance",
+    0x0113: "No such event type",
+    0x0114: "No such argument",
+    0x0115: "Invalid argument value",
+    0x0116: "Attribute value out of range",
+    0x0117: "Invalid object instance",
+    0x0118: "No such SOP class",
+    0x0119: "Class-instance conflict",
+    0x0120: "Missing attribute",
+    0x0121: "Missing attribute value",
+    0x0122: "Refused: SOP class not supported",
+    0x0123: "No such action type",
+    0x0124: "Refused: not authorized",
+    0x0210: "Duplicate invocation",
+    0x0211: "Unrecognized operation",
+    0x0212: "Mistyped argument",
+    0x0213: "Resource limitation",
+    0xFE00: "Cancel",
+    0xFF00: "Pending",
+    0xFF01: "Pending: optional keys not supported",
+}
+
 
 class C_ECHO_RQ(DIMSEPacket):
     """C-ECHO-RQ DIMSE Command for verification."""
@@ -473,6 +537,9 @@ class C_STORE_RQ(DIMSEPacket):
         DICOMUSField("data_set_type", 0x0000, 0x0000, 0x0800),
         DICOMUIDField("affected_sop_instance_uid",
                       "1.2.3.4.5.6.7.8.9", 0x0000, 0x1000),
+        # Only present in the C-STORE sub-operations of a C-MOVE
+        DICOMAEDIMSEField("move_originator_ae_title", None, 0x0000, 0x1030),
+        DICOMUSField("move_originator_message_id", None, 0x0000, 0x1031),
     ]
 
     def mysummary(self) -> str:
@@ -656,6 +723,302 @@ class C_GET_RSP(DIMSEPacket):
 
     def answers(self, other: Packet) -> int:
         if isinstance(other, C_GET_RQ):
+            return self.message_id_responded == other.message_id
+        return 0
+
+
+class C_CANCEL_RQ(DIMSEPacket):
+    """C-CANCEL-RQ DIMSE Command for cancelling a C-FIND, C-GET or C-MOVE."""
+
+    name = "C-CANCEL-RQ"
+    fields_desc = [
+        DICOMULField("command_group_length", None, 0x0000, 0x0000),
+        DICOMUSField("command_field", 0x0FFF, 0x0000, 0x0100),
+        DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
+        DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
+    ]
+
+    def mysummary(self) -> str:
+        return self.sprintf("C-CANCEL-RQ msg_id=%message_id_responded%")
+
+
+class N_EVENT_REPORT_RQ(DIMSEPacket):
+    """N-EVENT-REPORT-RQ DIMSE Command for reporting an event."""
+
+    name = "N-EVENT-REPORT-RQ"
+    fields_desc = [
+        DICOMULField("command_group_length", None, 0x0000, 0x0000),
+        DICOMUIDField("affected_sop_class_uid", "", 0x0000, 0x0002),
+        DICOMUSField("command_field", 0x0100, 0x0000, 0x0100),
+        DICOMUSField("message_id", 1, 0x0000, 0x0110),
+        DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
+        DICOMUIDField("affected_sop_instance_uid", "", 0x0000, 0x1000),
+        DICOMUSField("event_type_id", 0, 0x0000, 0x1002),
+    ]
+
+    def mysummary(self) -> str:
+        return self.sprintf("N-EVENT-REPORT-RQ msg_id=%message_id%")
+
+    def hashret(self) -> bytes:
+        return struct.pack("<H", self.message_id)
+
+
+class N_EVENT_REPORT_RSP(DIMSEPacket):
+    """N-EVENT-REPORT-RSP DIMSE Response."""
+
+    name = "N-EVENT-REPORT-RSP"
+    fields_desc = [
+        DICOMULField("command_group_length", None, 0x0000, 0x0000),
+        DICOMUIDField("affected_sop_class_uid", "", 0x0000, 0x0002),
+        DICOMUSField("command_field", 0x8100, 0x0000, 0x0100),
+        DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
+        DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
+        DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMUIDField("affected_sop_instance_uid", "", 0x0000, 0x1000),
+        DICOMUSField("event_type_id", 0, 0x0000, 0x1002),
+    ]
+
+    def mysummary(self) -> str:
+        return self.sprintf("N-EVENT-REPORT-RSP status=%status%")
+
+    def hashret(self) -> bytes:
+        return struct.pack("<H", self.message_id_responded)
+
+    def answers(self, other: Packet) -> int:
+        if isinstance(other, N_EVENT_REPORT_RQ):
+            return self.message_id_responded == other.message_id
+        return 0
+
+
+class N_GET_RQ(DIMSEPacket):
+    """N-GET-RQ DIMSE Command for retrieving attribute values."""
+
+    name = "N-GET-RQ"
+    fields_desc = [
+        DICOMULField("command_group_length", None, 0x0000, 0x0000),
+        DICOMUIDField("requested_sop_class_uid", "", 0x0000, 0x0003),
+        DICOMUSField("command_field", 0x0110, 0x0000, 0x0100),
+        DICOMUSField("message_id", 1, 0x0000, 0x0110),
+        DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
+        DICOMUIDField("requested_sop_instance_uid", "", 0x0000, 0x1001),
+        DICOMATField("attribute_identifier_list", None, 0x0000, 0x1005),
+    ]
+
+    def mysummary(self) -> str:
+        return self.sprintf("N-GET-RQ msg_id=%message_id%")
+
+    def hashret(self) -> bytes:
+        return struct.pack("<H", self.message_id)
+
+
+class N_GET_RSP(DIMSEPacket):
+    """N-GET-RSP DIMSE Response."""
+
+    name = "N-GET-RSP"
+    fields_desc = [
+        DICOMULField("command_group_length", None, 0x0000, 0x0000),
+        DICOMUIDField("affected_sop_class_uid", "", 0x0000, 0x0002),
+        DICOMUSField("command_field", 0x8110, 0x0000, 0x0100),
+        DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
+        DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
+        DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMUIDField("affected_sop_instance_uid", "", 0x0000, 0x1000),
+    ]
+
+    def mysummary(self) -> str:
+        return self.sprintf("N-GET-RSP status=%status%")
+
+    def hashret(self) -> bytes:
+        return struct.pack("<H", self.message_id_responded)
+
+    def answers(self, other: Packet) -> int:
+        if isinstance(other, N_GET_RQ):
+            return self.message_id_responded == other.message_id
+        return 0
+
+
+class N_SET_RQ(DIMSEPacket):
+    """N-SET-RQ DIMSE Command for modifying attribute values."""
+
+    name = "N-SET-RQ"
+    fields_desc = [
+        DICOMULField("command_group_length", None, 0x0000, 0x0000),
+        DICOMUIDField("requested_sop_class_uid", "", 0x0000, 0x0003),
+        DICOMUSField("command_field", 0x0120, 0x0000, 0x0100),
+        DICOMUSField("message_id", 1, 0x0000, 0x0110),
+        DICOMUSField("data_set_type", 0x0000, 0x0000, 0x0800),
+        DICOMUIDField("requested_sop_instance_uid", "", 0x0000, 0x1001),
+    ]
+
+    def mysummary(self) -> str:
+        return self.sprintf("N-SET-RQ msg_id=%message_id%")
+
+    def hashret(self) -> bytes:
+        return struct.pack("<H", self.message_id)
+
+
+class N_SET_RSP(DIMSEPacket):
+    """N-SET-RSP DIMSE Response."""
+
+    name = "N-SET-RSP"
+    fields_desc = [
+        DICOMULField("command_group_length", None, 0x0000, 0x0000),
+        DICOMUIDField("affected_sop_class_uid", "", 0x0000, 0x0002),
+        DICOMUSField("command_field", 0x8120, 0x0000, 0x0100),
+        DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
+        DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
+        DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMUIDField("affected_sop_instance_uid", "", 0x0000, 0x1000),
+    ]
+
+    def mysummary(self) -> str:
+        return self.sprintf("N-SET-RSP status=%status%")
+
+    def hashret(self) -> bytes:
+        return struct.pack("<H", self.message_id_responded)
+
+    def answers(self, other: Packet) -> int:
+        if isinstance(other, N_SET_RQ):
+            return self.message_id_responded == other.message_id
+        return 0
+
+
+class N_ACTION_RQ(DIMSEPacket):
+    """N-ACTION-RQ DIMSE Command for performing an action."""
+
+    name = "N-ACTION-RQ"
+    fields_desc = [
+        DICOMULField("command_group_length", None, 0x0000, 0x0000),
+        DICOMUIDField("requested_sop_class_uid", "", 0x0000, 0x0003),
+        DICOMUSField("command_field", 0x0130, 0x0000, 0x0100),
+        DICOMUSField("message_id", 1, 0x0000, 0x0110),
+        DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
+        DICOMUIDField("requested_sop_instance_uid", "", 0x0000, 0x1001),
+        DICOMUSField("action_type_id", 0, 0x0000, 0x1008),
+    ]
+
+    def mysummary(self) -> str:
+        return self.sprintf("N-ACTION-RQ msg_id=%message_id%")
+
+    def hashret(self) -> bytes:
+        return struct.pack("<H", self.message_id)
+
+
+class N_ACTION_RSP(DIMSEPacket):
+    """N-ACTION-RSP DIMSE Response."""
+
+    name = "N-ACTION-RSP"
+    fields_desc = [
+        DICOMULField("command_group_length", None, 0x0000, 0x0000),
+        DICOMUIDField("affected_sop_class_uid", "", 0x0000, 0x0002),
+        DICOMUSField("command_field", 0x8130, 0x0000, 0x0100),
+        DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
+        DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
+        DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMUIDField("affected_sop_instance_uid", "", 0x0000, 0x1000),
+        DICOMUSField("action_type_id", 0, 0x0000, 0x1008),
+    ]
+
+    def mysummary(self) -> str:
+        return self.sprintf("N-ACTION-RSP status=%status%")
+
+    def hashret(self) -> bytes:
+        return struct.pack("<H", self.message_id_responded)
+
+    def answers(self, other: Packet) -> int:
+        if isinstance(other, N_ACTION_RQ):
+            return self.message_id_responded == other.message_id
+        return 0
+
+
+class N_CREATE_RQ(DIMSEPacket):
+    """N-CREATE-RQ DIMSE Command for creating a SOP Instance."""
+
+    name = "N-CREATE-RQ"
+    fields_desc = [
+        DICOMULField("command_group_length", None, 0x0000, 0x0000),
+        DICOMUIDField("affected_sop_class_uid", "", 0x0000, 0x0002),
+        DICOMUSField("command_field", 0x0140, 0x0000, 0x0100),
+        DICOMUSField("message_id", 1, 0x0000, 0x0110),
+        DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
+        DICOMUIDField("affected_sop_instance_uid", "", 0x0000, 0x1000),
+    ]
+
+    def mysummary(self) -> str:
+        return self.sprintf("N-CREATE-RQ msg_id=%message_id%")
+
+    def hashret(self) -> bytes:
+        return struct.pack("<H", self.message_id)
+
+
+class N_CREATE_RSP(DIMSEPacket):
+    """N-CREATE-RSP DIMSE Response."""
+
+    name = "N-CREATE-RSP"
+    fields_desc = [
+        DICOMULField("command_group_length", None, 0x0000, 0x0000),
+        DICOMUIDField("affected_sop_class_uid", "", 0x0000, 0x0002),
+        DICOMUSField("command_field", 0x8140, 0x0000, 0x0100),
+        DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
+        DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
+        DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMUIDField("affected_sop_instance_uid", "", 0x0000, 0x1000),
+    ]
+
+    def mysummary(self) -> str:
+        return self.sprintf("N-CREATE-RSP status=%status%")
+
+    def hashret(self) -> bytes:
+        return struct.pack("<H", self.message_id_responded)
+
+    def answers(self, other: Packet) -> int:
+        if isinstance(other, N_CREATE_RQ):
+            return self.message_id_responded == other.message_id
+        return 0
+
+
+class N_DELETE_RQ(DIMSEPacket):
+    """N-DELETE-RQ DIMSE Command for deleting a SOP Instance."""
+
+    name = "N-DELETE-RQ"
+    fields_desc = [
+        DICOMULField("command_group_length", None, 0x0000, 0x0000),
+        DICOMUIDField("requested_sop_class_uid", "", 0x0000, 0x0003),
+        DICOMUSField("command_field", 0x0150, 0x0000, 0x0100),
+        DICOMUSField("message_id", 1, 0x0000, 0x0110),
+        DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
+        DICOMUIDField("requested_sop_instance_uid", "", 0x0000, 0x1001),
+    ]
+
+    def mysummary(self) -> str:
+        return self.sprintf("N-DELETE-RQ msg_id=%message_id%")
+
+    def hashret(self) -> bytes:
+        return struct.pack("<H", self.message_id)
+
+
+class N_DELETE_RSP(DIMSEPacket):
+    """N-DELETE-RSP DIMSE Response."""
+
+    name = "N-DELETE-RSP"
+    fields_desc = [
+        DICOMULField("command_group_length", None, 0x0000, 0x0000),
+        DICOMUIDField("affected_sop_class_uid", "", 0x0000, 0x0002),
+        DICOMUSField("command_field", 0x8150, 0x0000, 0x0100),
+        DICOMUSField("message_id_responded", 1, 0x0000, 0x0120),
+        DICOMUSField("data_set_type", 0x0101, 0x0000, 0x0800),
+        DICOMUSField("status", 0x0000, 0x0000, 0x0900),
+        DICOMUIDField("affected_sop_instance_uid", "", 0x0000, 0x1000),
+    ]
+
+    def mysummary(self) -> str:
+        return self.sprintf("N-DELETE-RSP status=%status%")
+
+    def hashret(self) -> bytes:
+        return struct.pack("<H", self.message_id_responded)
+
+    def answers(self, other: Packet) -> int:
+        if isinstance(other, N_DELETE_RQ):
             return self.message_id_responded == other.message_id
         return 0
 
