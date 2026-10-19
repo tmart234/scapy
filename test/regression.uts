@@ -4065,6 +4065,36 @@ assert p.data == b"b"
 # The reads after the header are not limited to its size
 assert s.calls < 10
 
+= Test send() with a packet larger than the socket buffer
+
+import socket
+import threading
+import time
+a, b = socket.socketpair()
+a.settimeout(5)
+b.settimeout(5)
+data = b"x" * (1024 * 1024)
+received = []
+def reader():
+    # The buffer of the socket fills up before the peer reads
+    time.sleep(0.2)
+    buf = b""
+    while len(buf) < len(data):
+        chunk = b.recv(65536)
+        if not chunk:
+            break
+        buf += chunk
+    received.append(buf)
+
+t = threading.Thread(target=reader)
+t.daemon = True
+t.start()
+assert StreamSocket(a).send(Raw(data)) == len(data)
+t.join(5)
+a.close()
+b.close()
+assert received == [data]
+
 ############
 + Tests of SSLStreamContext
 

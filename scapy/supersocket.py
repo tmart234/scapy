@@ -494,6 +494,19 @@ class StreamSocket(SimpleSocket):
         self._buf = b""
         super(StreamSocket, self).__init__(sock, basecls=basecls)
 
+    def send(self, x):
+        # type: (Packet) -> int
+        sx = raw(x)
+        try:
+            x.sent_time = time.time()
+        except AttributeError:
+            pass
+        if self.outs:
+            # send() may only write a part of the data on a socket with a timeout
+            self.outs.sendall(sx)
+            return len(sx)
+        return 0
+
     def recv(self, x=None, **kwargs):
         # type: (Optional[int], Any) -> Optional[Packet]
         if x is None:
