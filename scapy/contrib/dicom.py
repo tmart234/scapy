@@ -14,10 +14,22 @@ https://dicom.nema.org/medical/dicom/current/output/html/part08.html
 
 import logging
 import socket
+import ssl
 import struct
 import threading
 import time
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    Iterator,
+    List,
+    Optional,
+    Tuple,
+    Type,
+    Union,
+)
 
 from scapy.arch import get_if_addr
 from scapy.compat import Self, plain_str
@@ -39,7 +51,7 @@ from scapy.fields import (
 )
 from scapy.layers.inet import TCP
 from scapy.packet import Packet, bind_layers
-from scapy.supersocket import StreamSocket
+from scapy.supersocket import SSLStreamSocket, StreamSocket
 from scapy.volatile import RandInt, RandNum, RandShort, RandString
 
 __all__ = [
@@ -139,6 +151,7 @@ __all__ = [
     "_uid_to_bytes_raw",
     "build_presentation_context_rq",
     "build_user_information",
+    "dicom_build_p_data_tf",
     "parse_dimse_status",
 ]
 
@@ -1797,6 +1810,29 @@ def build_user_information(max_pdu_length: int = 16384,
     return DICOMVariableItem() / DICOMUserInformation(sub_items=sub_items)
 
 
+def dicom_build_p_data_tf(context_id: int, command: Union[Packet, bytes],
+                          dataset: Optional[bytes] = None,
+                          max_pdu_length: int = 16384) -> Iterator[Packet]:
+    """Build the P-DATA-TF PDUs of a DIMSE message, one PDV per PDU.
+
+    The command, then the data set, are cut in fragments of an even length
+    that fit in ``max_pdu_length`` (0 means no maximum), see PS3.8 Annex E.
+    """
+    # The PDV item header takes 6 bytes of the maximum PDU length
+    max_pdv_data = max((max_pdu_length - 6) & ~1, 2)
+    for is_command, data in ((1, bytes(command)), (0, dataset)):
+        if data is None:
+            continue
+        step = max_pdv_data if max_pdu_length else max(len(data), 1)
+        for offset in range(0, max(len(data), 1), step):
+            yield DICOM() / P_DATA_TF(pdv_items=[PresentationDataValueItem(
+                context_id=context_id,
+                data=data[offset:offset + step],
+                is_command=is_command,
+                is_last=1 if offset + step >= len(data) else 0,
+            )])
+
+
 class DICOM_Client:
     """DICOM client (SCU) for associations and DIMSE operations."""
 
@@ -1955,8 +1991,6 @@ class DICOM_Client:
 
     def _parse_accepted_contexts(self, response: Packet) -> None:
         for item in response[A_ASSOCIATE_AC].variable_items:
-            if item.item_type != 0x21:
-                continue
             if not item.haslayer(DICOMPresentationContextAC):
                 continue
             pctx = item[DICOMPresentationContextAC]
@@ -1971,8 +2005,6 @@ class DICOM_Client:
                 continue
 
             for sub_item in pctx.sub_items:
-                if sub_item.item_type != 0x40:
-                    continue
                 if not sub_item.haslayer(DICOMTransferSyntax):
                     continue
                 ts_uid = sub_item[DICOMTransferSyntax].uid
@@ -2043,8 +2075,7 @@ class DICOM_Client:
 
         # Fragments have an even length (PS3.8 Annex E) and the PDV item
         # header takes 6 bytes of the negotiated maximum PDU length
-        max_pdv_data = (self.max_pdu_length - 6) & ~1
-        if max_pdv_data < 2:
+        if (self.max_pdu_length - 6) & ~1 < 2:
             log_dicom.error("Maximum PDU length too small: %d", self.max_pdu_length)
             return None
 
@@ -2055,7 +2086,11 @@ class DICOM_Client:
             affected_sop_instance_uid=sop_instance_uid,
             message_id=msg_id,
         ))
+        for pdu in dicom_build_p_data_tf(store_ctx_id, dimse_rq, dataset_bytes,
+                                         self.max_pdu_length):
+            self.send(pdu)
 
+        # Skip the PDUs that do not answer the C-STORE-RQ
         cmd_pdv = PresentationDataValueItem(
             context_id=store_ctx_id,
             data=dimse_rq,
@@ -2063,33 +2098,6 @@ class DICOM_Client:
             is_last=1,
         )
         pdata_cmd = DICOM() / P_DATA_TF(pdv_items=[cmd_pdv])
-        self.send(pdata_cmd)
-
-        if len(dataset_bytes) <= max_pdv_data:
-            data_pdv = PresentationDataValueItem(
-                context_id=store_ctx_id,
-                data=dataset_bytes,
-                is_command=0,
-                is_last=1,
-            )
-            pdata_data = DICOM() / P_DATA_TF(pdv_items=[data_pdv])
-            self.send(pdata_data)
-        else:
-            offset = 0
-            while offset < len(dataset_bytes):
-                chunk = dataset_bytes[offset:offset + max_pdv_data]
-                is_last = 1 if (offset + len(chunk) >= len(dataset_bytes)) else 0
-                data_pdv = PresentationDataValueItem(
-                    context_id=store_ctx_id,
-                    data=chunk,
-                    is_command=0,
-                    is_last=is_last,
-                )
-                pdata_data = DICOM() / P_DATA_TF(pdv_items=[data_pdv])
-                self.send(pdata_data)
-                offset += len(chunk)
-
-        # Skip the PDUs that do not answer the C-STORE-RQ
         response = self.stream.sniff(
             count=1,
             timeout=self.read_timeout,
@@ -2133,11 +2141,14 @@ class DICOM_Server:
     to the (scu_role, scp_role) accepted for the requestor, (1, 0) otherwise.
     ``store_handler`` is called with the C-STORE-RQ, the transfer syntax UID
     and the data set, and returns the C-STORE status. ``ae_title`` is the
-    Called AE Title to accept, any when None.
+    Called AE Title to accept, any when None. ``max_pdu_length`` is the
+    Maximum Length proposed to the requestor, whose own Maximum Length is
+    ``peer_max_pdu_length``.
 
-    Every PDU sent comes from make_reply(), negotiate() and dimse_reply():
-    override them to answer other requests, or to send malformed, unexpected
-    or no PDUs at all.
+    Every PDU sent comes from make_reply(), negotiate(), accept_context() and
+    dimse_reply(): override them to answer other requests, to act as SCU on
+    the association through ``stream``, or to send malformed, unexpected or
+    no PDUs at all.
     """
 
     def __init__(self, ae_title: Optional[str] = None,
@@ -2162,18 +2173,31 @@ class DICOM_Server:
         self.store_handler = store_handler
         self.read_timeout = read_timeout
         self.max_pdu_length = max_pdu_length
+        self.peer_max_pdu_length = 0
         self.stream: Optional[StreamSocket] = None
         self.assoc_established = False
+        self.awaiting_close = False
         self.accepted_contexts: Dict[int, Tuple[str, str]] = {}
         self.request: Optional[Packet] = None
         self.command = b""
         self.dataset = b""
 
+    def accept_context(self, abstract_syntax: str,
+                       transfer_syntaxes: List[str]) -> Tuple[int, str]:
+        """Return the result and the transfer syntax of a proposed
+        presentation context (PS3.8 9.3.3.2).
+        """
+        if abstract_syntax not in self.supported_contexts:
+            return 3, DEFAULT_TRANSFER_SYNTAX_UID
+        # One transfer syntax, by our order of preference
+        for transfer_syntax in self.supported_contexts[abstract_syntax]:
+            if transfer_syntax in transfer_syntaxes:
+                return 0, transfer_syntax
+        # The transfer syntax is not significant for a rejected context
+        return 4, DEFAULT_TRANSFER_SYNTAX_UID
+
     def negotiate(self, pdu: Packet) -> Union[Packet, bytes]:
         """Answer an A-ASSOCIATE-RQ with an A-ASSOCIATE-AC or -RJ (PS3.8 9.3)."""
-        self.accepted_contexts = {}
-        self.request = None
-        self.command = self.dataset = b""
         assoc_rq = pdu[A_ASSOCIATE_RQ]
         # Only bit 0 of the protocol version is tested
         if not assoc_rq.protocol_version & 1:
@@ -2201,12 +2225,13 @@ class DICOM_Server:
                         role = sub_item[DICOMSCPSCURoleSelection]
                         uid = plain_str(role.sop_class_uid).rstrip("\x00")
                         scu_role, scp_role = self.roles.get(uid, (1, 0))
-                        roles[uid] = (role.scu_role & scu_role,
-                                      role.scp_role & scp_role)
+                        # The SOP Class UID is the one of the request
+                        roles[role.sop_class_uid] = (role.scu_role & scu_role,
+                                                     role.scp_role & scp_role)
             if not item.haslayer(DICOMPresentationContextRQ):
                 continue
             pctx = item[DICOMPresentationContextRQ]
-            abstract_syntax = None
+            abstract_syntax = ""
             proposed = []
             for sub_item in pctx.sub_items:
                 if sub_item.haslayer(DICOMAbstractSyntax):
@@ -2215,22 +2240,7 @@ class DICOM_Server:
                 elif sub_item.haslayer(DICOMTransferSyntax):
                     uid = sub_item[DICOMTransferSyntax].uid
                     proposed.append(plain_str(uid).rstrip("\x00"))
-            # One transfer syntax, by our order of preference
-            accepted = [
-                uid for uid in self.supported_contexts.get(abstract_syntax, [])
-                if uid in proposed
-            ]
-            if abstract_syntax not in self.supported_contexts:
-                result = 3
-            elif accepted:
-                result = 0
-                self.accepted_contexts[pctx.context_id] = (
-                    abstract_syntax, accepted[0]
-                )
-            else:
-                result = 4
-            # The transfer syntax is not significant for a rejected context
-            transfer_syntax = accepted[0] if accepted else DEFAULT_TRANSFER_SYNTAX_UID
+            result, transfer_syntax = self.accept_context(abstract_syntax, proposed)
             variable_items.append(
                 DICOMVariableItem() / DICOMPresentationContextAC(
                     context_id=pctx.context_id,
@@ -2253,9 +2263,12 @@ class DICOM_Server:
             variable_items=variable_items,
         )
 
-    def dimse_reply(self, request: Packet, context_id: int,
-                    dataset: bytes) -> Optional[Union[Packet, bytes]]:
-        """Build the DIMSE response to a request, or None to send none."""
+    def dimse_reply(self, request: Packet, context_id: int, dataset: bytes
+                    ) -> Union[None, Packet, bytes, Iterable[Union[Packet, bytes]]]:
+        """Answer a DIMSE request with a response command, sent on its
+        presentation context, or with PDUs, e.g. from dicom_build_p_data_tf()
+        for a response with a data set, or with None.
+        """
         # The Affected SOP Class and Instance UIDs are the ones of the request
         if isinstance(request, C_ECHO_RQ):
             return C_ECHO_RSP(
@@ -2275,22 +2288,70 @@ class DICOM_Server:
             )
         # Unrecognized operation, for the requests that have a response
         message_id = getattr(request, "message_id", None)
+        if message_id is None:
+            return None
         for rsp_cls in DIMSEPacket.__subclasses__():
-            if (message_id is not None and
-                    rsp_cls.command_field.default == request.command_field | 0x8000):
-                return rsp_cls(message_id_responded=message_id, status=0x0211)
+            if rsp_cls.command_field.default != request.command_field | 0x8000:
+                continue
+            # The other parameters are the ones of the request, or absent
+            fields = {}
+            for field in rsp_cls.fields_desc:
+                if field.name in ("affected_sop_class_uid", "affected_sop_instance_uid",
+                                  "action_type_id", "event_type_id"):
+                    requested = field.name.replace("affected", "requested")
+                    fields[field.name] = getattr(request, field.name,
+                                                 getattr(request, requested, None))
+            return rsp_cls(message_id_responded=message_id, status=0x0211, **fields)
         return None
 
-    def make_reply(self, pdu: Packet
-                   ) -> Union[None, Packet, bytes, List[Union[Packet, bytes]]]:
-        """Build the PDUs answering a received PDU (PS3.8 9.2)."""
+    def make_reply(self, pdu: Optional[Packet]
+                   ) -> Union[None, Packet, bytes, Iterable[Union[Packet, bytes]]]:
+        """Answer a received PDU, or None after ``read_timeout`` seconds
+        without one (PS3.8 9.2).
+        """
+        if pdu is None:
+            if not self.assoc_established:
+                return None
+            self.assoc_established = False
+            return DICOM() / A_ABORT()
         if pdu.haslayer(A_ABORT):
             self.assoc_established = False
             return None
+        if self.awaiting_close:
+            # Sta13: AA-7 for an A-ASSOCIATE-RQ or an unrecognized PDU, else AA-6
+            if pdu.pdu_type not in PDU_TYPES:
+                return DICOM() / A_ABORT(source=2, reason_diag=1)
+            if pdu.haslayer(A_ASSOCIATE_RQ):
+                return DICOM() / A_ABORT(source=2, reason_diag=2)
+            return None
         if pdu.haslayer(A_ASSOCIATE_RQ) and not self.assoc_established:
+            max_length = pdu.getlayer(DICOMMaximumLength)
+            self.peer_max_pdu_length = max_length.max_pdu_length if max_length else 0
+            self.request = None
+            self.command = self.dataset = b""
             reply = self.negotiate(pdu)
-            self.assoc_established = (isinstance(reply, Packet) and
-                                      reply.haslayer(A_ASSOCIATE_AC))
+            # The association follows the A-ASSOCIATE-AC sent, if any
+            ac = DICOM(bytes(reply))
+            self.assoc_established = ac.haslayer(A_ASSOCIATE_AC)
+            self.accepted_contexts = {}
+            if self.assoc_established:
+                abstract_syntaxes = {}
+                for item in pdu[A_ASSOCIATE_RQ].variable_items:
+                    uid = item.getlayer(DICOMAbstractSyntax)
+                    if item.haslayer(DICOMPresentationContextRQ) and uid:
+                        context_id = item[DICOMPresentationContextRQ].context_id
+                        abstract_syntaxes[context_id] = (
+                            plain_str(uid.uid).rstrip("\x00")
+                        )
+                for item in ac[A_ASSOCIATE_AC].variable_items:
+                    uid = item.getlayer(DICOMTransferSyntax)
+                    if (item.haslayer(DICOMPresentationContextAC) and uid and
+                            item[DICOMPresentationContextAC].result == 0):
+                        context_id = item[DICOMPresentationContextAC].context_id
+                        self.accepted_contexts[context_id] = (
+                            abstract_syntaxes.get(context_id, ""),
+                            plain_str(uid.uid).rstrip("\x00"),
+                        )
             return reply
         if not self.assoc_established:
             # AA-1: unexpected PDU before the association
@@ -2307,8 +2368,9 @@ class DICOM_Server:
         # The fragments of a command, then of its data set, are concatenated
         # until their last fragment (PS3.8 Annex E)
         for pdv in pdu[P_DATA_TF].pdv_items:
-            if pdv.context_id not in self.accepted_contexts:
-                log_dicom.info("PDV on presentation context %d", pdv.context_id)
+            if (not isinstance(pdv, PresentationDataValueItem) or
+                    pdv.context_id not in self.accepted_contexts):
+                log_dicom.info("Invalid PDV %s", pdv.summary())
                 self.assoc_established = False
                 return DICOM() / A_ABORT(source=2, reason_diag=6)
             if pdv.is_command:
@@ -2333,39 +2395,46 @@ class DICOM_Server:
             response = self.dimse_reply(self.request, pdv.context_id, self.dataset)
             self.request = None
             self.dataset = b""
-            if response is not None:
-                pdv_rsp = PresentationDataValueItem(
-                    context_id=pdv.context_id,
-                    data=bytes(response),
-                    is_command=1,
-                    is_last=1,
+            if isinstance(response, DIMSEPacket):
+                response = dicom_build_p_data_tf(
+                    pdv.context_id, response,
+                    max_pdu_length=self.peer_max_pdu_length,
                 )
-                replies.append(DICOM() / P_DATA_TF(pdv_items=[pdv_rsp]))
+            if isinstance(response, (Packet, bytes)):
+                replies.append(response)
+            elif response is not None:
+                replies.extend(response)
         return replies
 
     def handle(self, sock: socket.socket) -> None:
         """Answer the PDUs received on a connected socket until the peer
-        closes it, aborts, or stays idle for ``read_timeout`` seconds.
+        closes it or aborts, or until ``read_timeout`` seconds without PDU.
         """
         sock.settimeout(self.read_timeout)
-        self.stream = StreamSocket(sock, basecls=DICOM)
+        if isinstance(sock, ssl.SSLSocket):
+            self.stream = SSLStreamSocket(sock, basecls=DICOM)
+        else:
+            self.stream = StreamSocket(sock, basecls=DICOM)
+        self.assoc_established = self.awaiting_close = False
         try:
             while True:
                 try:
-                    pdu = self.stream.recv()
+                    pdu: Optional[Packet] = self.stream.recv()
                 except socket.timeout:
                     log_dicom.info("No PDU for %d seconds", self.read_timeout)
-                    if self.assoc_established:
-                        self.stream.send(DICOM() / A_ABORT())
-                    break
+                    pdu = None
                 replies = self.make_reply(pdu)
                 if replies is None:
                     replies = []
-                elif not isinstance(replies, list):
+                elif isinstance(replies, (Packet, bytes)):
                     replies = [replies]
                 for reply in replies:
-                    self.stream.send(reply)
-                if pdu.haslayer(A_ABORT):
+                    data = bytes(reply)
+                    self.stream.send(data)
+                    # Sta13 after an A-ASSOCIATE-RJ, an A-RELEASE-RP or an A-ABORT
+                    if data[:1] in (b"\x03", b"\x06", b"\x07"):
+                        self.awaiting_close = True
+                if pdu is None or pdu.haslayer(A_ABORT):
                     break
         except EOFError:
             log_dicom.debug("Connection closed by the peer")
