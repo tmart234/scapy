@@ -633,6 +633,49 @@ with no_debug_dissector(reverse=True):
 
 split_layers(TCP, CustomPacket, sport=12345)
 
+= TCPSession: messages left in the buffer after several coalesced ones
+
+class CustomPacket(Packet):
+    fields_desc = [
+        ByteField("len", 0),
+        StrLenField("a", 0, length_from=lambda pkt: pkt.len - 1),
+    ]
+    def extract_padding(self, s):
+        return b"", s
+    @classmethod
+    def tcp_reassemble(cls, data, metadata, session):
+        if len(data) < data[0]:
+            return None
+        return CustomPacket(data)
+
+class EndPacket(CustomPacket):
+    @classmethod
+    def tcp_reassemble(cls, data, metadata, session):
+        if not metadata.get("tcp_end"):
+            return None
+        return EndPacket(data)
+
+bind_layers(TCP, CustomPacket, sport=12345)
+bind_layers(TCP, EndPacket, sport=12346)
+
+# Two whole messages followed by the start of a third one
+pkts = sniff(offline=[
+    IP(dst="1.1.1.1", src="2.2.2.2")/TCP(sport=12345, dport=12, seq=1)/b"\x02a\x02b\x05c",
+    IP(dst="1.1.1.1", src="2.2.2.2")/TCP(sport=12345, dport=12, seq=7)/b"def",
+], session=TCPSession)
+assert [p.a for p in pkts[0].iterpayloads() if isinstance(p, CustomPacket)] == [b"a", b"b"]
+assert pkts[1][CustomPacket].a == b"cdef"
+
+# Coalesced messages dissected when a FIN without data arrives
+pkts = sniff(offline=[
+    IP(dst="1.1.1.1", src="2.2.2.2")/TCP(sport=12346, dport=12, seq=1)/b"\x02a\x02b",
+    IP(dst="1.1.1.1", src="2.2.2.2")/TCP(sport=12346, dport=12, seq=5, flags="FA"),
+], session=TCPSession)
+assert pkts[0][EndPacket].a == b"a"
+
+split_layers(TCP, CustomPacket, sport=12345)
+split_layers(TCP, EndPacket, sport=12346)
+
 
 = Layer binding
 

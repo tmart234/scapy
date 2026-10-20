@@ -4018,6 +4018,83 @@ r = ssck.sr1(DNSTCP(rd=1, qd=DNSQR(qname="www.example.com")), timeout=3)
 sck.close()
 assert DNSTCP in r and len(r.an)
 
+= Test with a header received before the rest of the packet
+
+import socket
+import struct
+class MockSocket(object):
+    def __init__(self, data):
+        self.data = data
+        self.available = 4
+        self.calls = 0
+    def recv(self, x, flags=0):
+        self.calls += 1
+        data = self.data[:min(x, self.available)]
+        # The rest of the packet arrives after the header
+        self.available = len(self.data)
+        if not flags & socket.MSG_PEEK:
+            self.data = self.data[len(data):]
+        return data
+    def fileno(self):
+        return -1
+    def close(self):
+        return
+
+
+class TestPacket(Packet):
+    name = 'TestPacket'
+    fields_desc = [
+        FieldLenField('len', None, length_of='data', fmt='I'),
+        StrLenField('data', b'', length_from=lambda pkt: pkt.len),
+    ]
+    def extract_padding(self, s):
+        return b"", s
+    @classmethod
+    def tcp_reassemble(cls, data, metadata, session):
+        if len(data) < 4 or len(data) < 4 + struct.unpack("!I", data[:4])[0]:
+            return None
+        return cls(data)
+
+s = MockSocket(raw(TestPacket(data=b"a" * 3000)) + raw(TestPacket(data=b"b")))
+ss = StreamSocket(s, basecls=TestPacket)
+
+p = ss.recv()
+assert p.data == b"a" * 3000
+p = ss.recv()
+assert p.data == b"b"
+# The reads after the header are not limited to its size
+assert s.calls < 10
+
+= Test send() with a packet larger than the socket buffer
+
+import socket
+import threading
+import time
+a, b = socket.socketpair()
+a.settimeout(5)
+b.settimeout(5)
+data = b"x" * (1024 * 1024)
+received = []
+def reader():
+    # The buffer of the socket fills up before the peer reads
+    time.sleep(0.2)
+    buf = b""
+    while len(buf) < len(data):
+        chunk = b.recv(65536)
+        if not chunk:
+            break
+        buf += chunk
+    received.append(buf)
+
+t = threading.Thread(target=reader)
+t.daemon = True
+t.start()
+assert StreamSocket(a).send(Raw(data)) == len(data)
+t.join(5)
+a.close()
+b.close()
+assert received == [data]
+
 ############
 + Tests of SSLStreamContext
 
