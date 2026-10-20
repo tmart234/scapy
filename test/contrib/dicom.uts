@@ -817,13 +817,16 @@ assert server.make_reply(DICOM(bytes(DICOM() / A_ABORT()))) is None
 assert server.make_reply(None) is None
 ac = server.make_reply(associate_rq())
 assert server.make_reply(None).haslayer(A_ABORT)
+with no_debug_dissector():
+    # PDV item length of 0
+    empty_pdv = DICOM(b"\x04\x00\x00\x00\x00\x04\x00\x00\x00\x00")
+
 for pdu, reason in [
     (DICOM(b"\x09\x00\x00\x00\x00\x02\x00\x00"), 1),
     (associate_rq(), 2),
     (p_data(3, C_ECHO_RQ()), 6),
     (p_data(1, bytes(C_ECHO_RQ(message_id=1))[:-1]), 6),
-    # PDV item length of 0
-    (DICOM(b"\x04\x00\x00\x00\x00\x04\x00\x00\x00\x00"), 6),
+    (empty_pdv, 6),
 ]:
     ac = server.make_reply(associate_rq())
     abort = server.make_reply(pdu)[A_ABORT]
