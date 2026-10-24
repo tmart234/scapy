@@ -1187,9 +1187,26 @@ assert DICOM.tcp_reassemble(raw[:5], {}, {}) is None
 assert DICOM.tcp_reassemble(raw[:-1], {}, {}) is None
 assert DICOM.tcp_reassemble(raw, {}, {}).haslayer(A_RELEASE_RQ)
 
-= StreamSocket reassembles PDUs spanning several reads
+= DICOM tcp_reassemble does not wait on data that is not a PDU
 import socket
 from scapy.supersocket import StreamSocket
+http = b"HTTP/1.1 400 Bad Request\r\n\r\n"
+pkt = DICOM.tcp_reassemble(http, {}, {})
+assert pkt.pdu_type == 0x48
+assert bytes(pkt) == http
+client, peer = socket.socketpair()
+client.settimeout(5)
+peer.sendall(http)
+stream = StreamSocket(client, basecls=DICOM)
+try:
+    pkt = stream.recv()
+finally:
+    stream.close()
+    peer.close()
+
+assert bytes(pkt) == http
+
+= StreamSocket reassembles PDUs spanning several reads
 pdv = PresentationDataValueItem(context_id=1, data=b"A" * 100, is_last=1)
 client, peer = socket.socketpair()
 peer.sendall(bytes(DICOM() / P_DATA_TF(pdv_items=[pdv])) + bytes(DICOM() / A_RELEASE_RQ()))

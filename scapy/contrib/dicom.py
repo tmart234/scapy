@@ -1496,6 +1496,9 @@ class DICOM(Packet):
                        session: Dict[str, Any]) -> Optional[Packet]:
         if len(data) < 6:
             return None
+        # Not a PDU: do not wait for a length read from foreign data
+        if data[0] not in PDU_TYPES:
+            return cls(data)
         length = struct.unpack("!I", data[2:6])[0] + 6
         if len(data) >= length:
             return cls(data)
